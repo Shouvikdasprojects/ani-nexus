@@ -10,6 +10,8 @@ import { trailerRouter } from './routes/trailerRoutes.js';
 import { newsRouter } from './routes/newsRoutes.js';
 import { genreRouter, filterRouter } from './routes/genreRoutes.js';
 import { searchRouter } from './routes/searchRoutes.js';
+import { seasonRouter } from './routes/seasonRoutes.js';
+import { topRouter } from './routes/topRoutes.js';
 
 export const app: Application = express();
 
@@ -37,10 +39,17 @@ app.get('/', (_req: Request, res: Response) => {
       news: '/api/v1/news',
       articles: '/api/v1/articles',
       genres: '/api/v1/genres',
+      filter: '/api/v1/filter?genre=action&year=2024',
+      seasonsNow: '/api/v1/seasons/now',
+      seasonsUpcoming: '/api/v1/seasons/upcoming',
+      seasonsArchive: '/api/v1/seasons/:year/:season',
+      top: '/api/v1/top?type={trending|popular|rated|movies|airing|upcoming}',
       search: '/api/v1/search?q={title}',
     },
     features: [
       'Master Franchise Document (All seasons, movies, OVAs unified)',
+      'Seasonal Hub (Now Airing, Upcoming, Winter/Spring/Summer/Fall Archives)',
+      'Curated Top Collections (Trending, Popular, Awards/Highest Rated, Movies)',
       '3-Tier Titles (English primary, Romaji, Kanji, Synonyms)',
       'Dual Community Scores (MAL 10-scale + AniList 100% scale side-by-side)',
       'Verified Dub & Sub Matrix (Zero hallucination, derived from voice cast)',
@@ -66,6 +75,8 @@ app.use('/api/v1/trailers', trailerRouter);
 app.use('/api/v1', newsRouter); // handles /api/v1/news, /api/v1/articles, /api/v1/sync
 app.use('/api/v1/genres', genreRouter);
 app.use('/api/v1/filter', filterRouter);
+app.use('/api/v1/seasons', seasonRouter);
+app.use('/api/v1/top', topRouter);
 app.use('/api/v1/search', searchRouter);
 
 // 404 Handler
