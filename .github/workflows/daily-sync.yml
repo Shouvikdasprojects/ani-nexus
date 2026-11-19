@@ -1,0 +1,36 @@
+name: AniNexus Daily Automated Sync
+
+on:
+  schedule:
+    # Runs daily at 03:00 UTC (08:30 AM IST)
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  sync:
+    name: Sync Live Airing Schedules & News
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Daily Sync Script
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
+          MAL_KEY_1: ${{ secrets.MAL_KEY_1 }}
+          MAL_KEY_2: ${{ secrets.MAL_KEY_2 }}
+          MAL_KEY_3: ${{ secrets.MAL_KEY_3 }}
+          MAL_KEY_4: ${{ secrets.MAL_KEY_4 }}
+          MAL_KEY_5: ${{ secrets.MAL_KEY_5 }}
+        run: npm run sync:daily
