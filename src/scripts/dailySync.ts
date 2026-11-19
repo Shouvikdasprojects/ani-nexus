@@ -2,6 +2,7 @@ import { connectDatabase } from '../config/database.js';
 import { newsService } from '../services/newsService.js';
 import { anilistService } from '../services/anilistService.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
+import { awardService } from '../services/awardService.js';
 import mongoose from 'mongoose';
 
 async function runDailySync() {
@@ -38,6 +39,11 @@ async function runDailySync() {
       await new Promise((r) => setTimeout(r, 600));
     }
   }
+
+  // 3. Enforce 5-Year Rolling Window for Anime Awards
+  console.log('🏆 Enforcing 5-Year Rolling Window for Anime Awards...');
+  const awardPruneResult = await awardService.pruneOutdatedAwards();
+  console.log(`   Awards Pruning: Cutoff Year is ${awardPruneResult.window.cutoffYear}, Purged: ${awardPruneResult.deletedCount}`);
 
   console.log(`\n🎉 Daily Sync Complete! Successfully refreshed ${count} franchises.`);
   await mongoose.disconnect();

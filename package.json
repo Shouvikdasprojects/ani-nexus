@@ -10,6 +10,7 @@
     "dev": "tsx watch src/index.ts",
     "seed:top": "tsx src/scripts/seedTop.ts",
     "seed:range": "tsx src/scripts/seedRange.ts",
+    "seed:awards": "tsx src/scripts/seedAwards.ts",
     "sync:daily": "tsx src/scripts/dailySync.ts"
   },
   "keywords": [

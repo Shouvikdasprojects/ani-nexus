@@ -12,6 +12,7 @@ import { genreRouter, filterRouter } from './routes/genreRoutes.js';
 import { searchRouter } from './routes/searchRoutes.js';
 import { seasonRouter } from './routes/seasonRoutes.js';
 import { topRouter } from './routes/topRoutes.js';
+import { awardRouter } from './routes/awardRoutes.js';
 
 export const app: Application = express();
 
@@ -44,12 +45,17 @@ app.get('/', (_req: Request, res: Response) => {
       seasonsUpcoming: '/api/v1/seasons/upcoming',
       seasonsArchive: '/api/v1/seasons/:year/:season',
       top: '/api/v1/top?type={trending|popular|rated|movies|airing|upcoming}',
+      awards: '/api/v1/awards',
+      awardsLatest: '/api/v1/awards/latest',
+      awardsYear: '/api/v1/awards/:year',
+      awardsCategory: '/api/v1/awards/category/:categorySlug',
       search: '/api/v1/search?q={title}',
     },
     features: [
       'Master Franchise Document (All seasons, movies, OVAs unified)',
       'Seasonal Hub (Now Airing, Upcoming, Winter/Spring/Summer/Fall Archives)',
       'Curated Top Collections (Trending, Popular, Awards/Highest Rated, Movies)',
+      'Anime Awards Hub (Current year + past 5 years with auto-purge 6th-year rolling retention)',
       '3-Tier Titles (English primary, Romaji, Kanji, Synonyms)',
       'Dual Community Scores (MAL 10-scale + AniList 100% scale side-by-side)',
       'Verified Dub & Sub Matrix (Zero hallucination, derived from voice cast)',
@@ -77,6 +83,7 @@ app.use('/api/v1/genres', genreRouter);
 app.use('/api/v1/filter', filterRouter);
 app.use('/api/v1/seasons', seasonRouter);
 app.use('/api/v1/top', topRouter);
+app.use('/api/v1/awards', awardRouter);
 app.use('/api/v1/search', searchRouter);
 
 // 404 Handler
