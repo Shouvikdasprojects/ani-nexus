@@ -186,6 +186,29 @@ class AniListService {
     const data = await this.fetchGraphQL(query, { start, end, page });
     return data?.Page?.airingSchedules || [];
   }
+
+  async searchAnime(search: string): Promise<any[]> {
+    const query = `
+      query ($search: String) {
+        Page(page: 1, perPage: 5) {
+          media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
+            id
+            idMal
+            title {
+              romaji
+              english
+              userPreferred
+            }
+            format
+            seasonYear
+          }
+        }
+      }
+    `;
+
+    const data = await this.fetchGraphQL(query, { search });
+    return data?.Page?.media || [];
+  }
 }
 
 export const anilistService = new AniListService();
