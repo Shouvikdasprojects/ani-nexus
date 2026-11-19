@@ -30,9 +30,14 @@
 - [x] `GET /api/v1/anime/:idOrSlug` (Single anime entry)
 - [x] `GET /api/v1/anime/:idOrSlug/languages` (Verified audio dubs & subtitles)
 - [x] `GET /api/v1/schedule` (7-day airing timeline with live countdown)
+- [x] `GET /api/v1/seasons/now` (Currently airing this season)
+- [x] `GET /api/v1/seasons/upcoming` (Anticipated upcoming anime)
+- [x] `GET /api/v1/seasons/:year/:season` (Winter, Spring, Summer, Fall seasonal archives)
+- [x] `GET /api/v1/top?type=trending|popular|rated|movies|airing|upcoming` (Curated frontend collections)
 - [x] `GET /api/v1/trailers` (YouTube trailers carousel feed)
 - [x] `GET /api/v1/news` & `/api/v1/articles` (Auto-purged 60-day news/articles)
 - [x] `GET /api/v1/genres` & `/api/v1/genres/:slug` (50+ genres & themes catalog)
+- [x] `GET /api/v1/filter` (Multi-criteria filtering)
 - [x] `GET /api/v1/search` & `/api/v1/search/suggest` (Advanced typo-tolerant fuzzy omni-search)
 
 ## ⚡ Phase 5: Seeder & Automation Cron Jobs [COMPLETED]

@@ -44,6 +44,10 @@
 | `GET` | `/api/v1/anime/:idOrSlug` | Single anime part lookup (MAL ID, AniList ID, or slug) |
 | `GET` | `/api/v1/anime/:idOrSlug/languages` | Direct verified audio dubs and subtitles |
 | `GET` | `/api/v1/schedule` | 7-day broadcast calendar with live countdown |
+| `GET` | `/api/v1/seasons/now` | Currently airing anime for active season |
+| `GET` | `/api/v1/seasons/upcoming` | Anticipated upcoming releases with release dates |
+| `GET` | `/api/v1/seasons/:year/:season` | Seasonal archives (e.g. 2024/fall, 2025/winter) |
+| `GET` | `/api/v1/top?type={type}` | Curated Collections: trending, popular, rated (Anime Awards), movies, airing, upcoming |
 | `GET` | `/api/v1/trailers` | YouTube trailers carousel feed |
 | `GET` | `/api/v1/news` | 60-day auto-purged news feed (with verified cover photos) |
 | `GET` | `/api/v1/articles` | Editorial text digests & analysis (without images) |
