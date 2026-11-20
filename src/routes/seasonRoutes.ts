@@ -67,7 +67,7 @@ seasonRouter.get('/now', async (req: Request, res: Response): Promise<void> => {
     ]);
 
     // 2. Non-blocking asynchronous background ingestion if few entries in database
-    if (results.length < 5) {
+    if (total < 5) {
       setImmediate(async () => {
         try {
           const gqlQuery = `
