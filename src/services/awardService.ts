@@ -50,9 +50,6 @@ export class AwardService {
    * Get list of all available award years and editions currently retained
    */
   async getOverview() {
-    // Run pruning to ensure database stays clean
-    await this.pruneOutdatedAwards();
-
     const awards = await Award.find()
       .sort({ year: -1 })
       .select('awardName edition year slug status ceremonyDate totalCategories bannerImage')
@@ -78,7 +75,6 @@ export class AwardService {
    * Get complete awards data for the latest year
    */
   async getLatestAwards() {
-    await this.pruneOutdatedAwards();
     const latest = await Award.findOne().sort({ year: -1 }).lean();
     return latest;
   }
@@ -109,8 +105,6 @@ export class AwardService {
    * e.g. "anime-of-the-year", "best-animation", "best-action"
    */
   async getCategoryHistory(categorySlug: string) {
-    await this.pruneOutdatedAwards();
-
     const normalizedSlug = categorySlug.toLowerCase().trim();
     const awards = await Award.find().sort({ year: -1 }).lean();
 

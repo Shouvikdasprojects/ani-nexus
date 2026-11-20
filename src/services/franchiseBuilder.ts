@@ -175,7 +175,7 @@ export class FranchiseBuilder {
     const totalEpsCount = aniMedia.episodes || tmdbEpisodes.length || 12;
     const episodes: IEpisode[] = [];
 
-    for (let i = 1; i <= Math.min(totalEpsCount, 100); i++) {
+    for (let i = 1; i <= Math.min(totalEpsCount, 250); i++) {
       const tmdbEp = tmdbEpisodes.find((e) => e.episodeNumber === i);
       episodes.push({
         season: 1,

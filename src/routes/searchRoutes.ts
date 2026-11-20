@@ -20,34 +20,63 @@ searchRouter.get('/', async (req: Request, res: Response): Promise<void> => {
 
     const limit = Math.min(Number(req.query.limit) || 20, 50);
 
-    // 1. Search in local MongoDB
-    const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    let results = await Franchise.find(
-      {
-        $or: [
-          { 'titles.primary': regex },
-          { 'titles.english': regex },
-          { 'titles.romaji': regex },
-          { 'titles.native': regex },
-          { 'titles.synonyms': regex },
-          { slug: regex },
-        ],
-      },
-      {
-        titles: 1,
-        slug: 1,
-        images: 1,
-        classification: 1,
-        contentRating: 1,
-        'timeline.scores': 1,
-        'timeline.languages': 1,
-        'timeline.year': 1,
-        totalEpisodes: 1,
+    // 1. Search in local MongoDB using Full-Text Index first, then Regex fallback
+    let results: any[] = [];
+
+    if (query.length >= 3) {
+      try {
+        results = await Franchise.find(
+          { $text: { $search: query } },
+          {
+            textScore: { $meta: 'textScore' },
+            titles: 1,
+            slug: 1,
+            images: 1,
+            classification: 1,
+            contentRating: 1,
+            'timeline.scores': 1,
+            'timeline.languages': 1,
+            'timeline.year': 1,
+            totalEpisodes: 1,
+          }
+        )
+          .sort({ textScore: { $meta: 'textScore' }, 'timeline.0.scores.combinedAverage': -1 })
+          .limit(limit)
+          .lean();
+      } catch {
+        // Silent fallback to regex
       }
-    )
-      .sort({ 'timeline.0.scores.combinedAverage': -1 })
-      .limit(limit)
-      .lean();
+    }
+
+    if (results.length === 0) {
+      const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      results = await Franchise.find(
+        {
+          $or: [
+            { 'titles.primary': regex },
+            { 'titles.english': regex },
+            { 'titles.romaji': regex },
+            { 'titles.native': regex },
+            { 'titles.synonyms': regex },
+            { slug: regex },
+          ],
+        },
+        {
+          titles: 1,
+          slug: 1,
+          images: 1,
+          classification: 1,
+          contentRating: 1,
+          'timeline.scores': 1,
+          'timeline.languages': 1,
+          'timeline.year': 1,
+          totalEpisodes: 1,
+        }
+      )
+        .sort({ 'timeline.0.scores.combinedAverage': -1 })
+        .limit(limit)
+        .lean();
+    }
 
     // 2. Cache-Aside Fallback: If no matches in DB, search MAL & auto-ingest top result
     if (results.length === 0) {

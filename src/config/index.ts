@@ -1,8 +1,11 @@
 import dns from 'dns';
 import dotenv from 'dotenv';
 
-// Force reliable DNS servers for MongoDB SRV and external API resilience
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+// Set public DNS servers for MongoDB SRV record resolution
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch {}
+
 if (dns.setDefaultResultOrder) {
   try {
     dns.setDefaultResultOrder('ipv4first');

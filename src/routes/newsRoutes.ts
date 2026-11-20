@@ -50,10 +50,10 @@ newsRouter.get('/articles', async (req: Request, res: Response): Promise<void> =
 });
 
 /**
- * POST /api/v1/news/sync
+ * POST /api/v1/news/sync or POST /api/v1/sync
  * Manually trigger RSS feed sync
  */
-newsRouter.post('/sync', async (_req: Request, res: Response): Promise<void> => {
+const handleSync = async (_req: Request, res: Response): Promise<void> => {
   try {
     const result = await newsService.syncFeeds();
     res.json({
@@ -63,4 +63,7 @@ newsRouter.post('/sync', async (_req: Request, res: Response): Promise<void> => 
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
-});
+};
+
+newsRouter.post('/sync', handleSync);
+newsRouter.post('/news/sync', handleSync);

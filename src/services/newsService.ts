@@ -9,6 +9,11 @@ interface CustomFeedItem {
   contentSnippet?: string;
   enclosure?: { url: string };
   'media:content'?: { $: { url: string } };
+  'media:thumbnail'?: { $: { url: string } } | { url: string };
+  'content:encoded'?: string;
+  mediaContent?: { $: { url: string } } | { url: string };
+  mediaThumbnail?: { $: { url: string } } | { url: string };
+  contentEncoded?: string;
 }
 
 class NewsService {
@@ -32,7 +37,9 @@ class NewsService {
     this.parser = new Parser({
       customFields: {
         item: [
-          ['media:content', 'media:content'],
+          ['media:content', 'mediaContent'],
+          ['media:thumbnail', 'mediaThumbnail'],
+          ['content:encoded', 'contentEncoded'],
           ['enclosure', 'enclosure'],
         ],
       },
@@ -54,15 +61,27 @@ class NewsService {
       return item.enclosure.url;
     }
     // 2. Media:content check
-    if (item['media:content']?.['$']?.url) {
-      return item['media:content']['$'].url;
+    const mc = item.mediaContent || item['media:content'];
+    if (mc?.['$']?.url) {
+      return mc['$'].url;
     }
-    if (typeof item['media:content'] === 'string') {
-      return item['media:content'];
+    if (typeof mc === 'string') {
+      return mc;
     }
-    // 3. RegEx parse from content or description
-    const content = item.content || item['content:encoded'] || item.description || '';
-    const imgMatch = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+    // 3. Media:thumbnail check (Crunchyroll News & others)
+    const mt = item.mediaThumbnail || item['media:thumbnail'];
+    if (mt?.['$']?.url) {
+      return mt['$'].url;
+    }
+    if (mt?.url) {
+      return mt.url;
+    }
+    if (typeof mt === 'string') {
+      return mt;
+    }
+    // 4. RegEx parse from contentEncoded, content or description (Anime Corner, ANN)
+    const htmlContent = item.contentEncoded || item['content:encoded'] || item.content || item.description || '';
+    const imgMatch = htmlContent.match(/<img[^>]+src=["']([^"']+)["']/i);
     if (imgMatch && imgMatch[1]) {
       return imgMatch[1];
     }
@@ -73,44 +92,51 @@ class NewsService {
   /**
    * Syncs RSS feeds into MongoDB with 60-day auto-purge TTL
    */
-  async syncFeeds(): Promise<{ synced: number; skipped: number }> {
+  async syncFeeds(): Promise<{ synced: number; skipped: number; upgraded: number }> {
     let synced = 0;
     let skipped = 0;
+    let upgraded = 0;
 
     for (const source of this.feedSources) {
       try {
         const feed = await this.parser.parseURL(source.url);
         if (!feed?.items) continue;
 
-        for (const item of feed.items.slice(0, 20)) {
+        for (const item of feed.items.slice(0, 25)) {
           if (!item.title || !item.link) continue;
 
           const baseSlug = this.slugify(item.title);
           if (!baseSlug) continue;
 
-          // Check if already exists by slug or link
+          const imageUrl = this.extractImageUrl(item);
+          const category: 'news' | 'article' = imageUrl ? 'news' : 'article';
+
+          // Check if already exists by sourceUrl or exact title
           const existing = await News.findOne({
-            $or: [{ slug: baseSlug }, { sourceUrl: item.link }],
+            $or: [{ sourceUrl: item.link }, { title: item.title }],
           });
 
           if (existing) {
+            // Retroactively upgrade article to news if image is now discovered
+            if (imageUrl && (!existing.imageUrl || existing.category === 'article')) {
+              await News.updateOne(
+                { _id: existing._id },
+                { $set: { imageUrl, category: 'news', tags: ['Anime', 'news'] } }
+              );
+              upgraded++;
+            }
             skipped++;
             continue;
           }
 
-          const imageUrl = this.extractImageUrl(item);
-          // Dual Category Rule:
-          // Images Present -> 'news'
-          // No Images -> 'article'
-          const category: 'news' | 'article' = imageUrl ? 'news' : 'article';
-
           const publishedDate = item.pubDate ? new Date(item.pubDate) : new Date();
+          const hash = Buffer.from(item.link).toString('base64url').slice(-6);
 
           await News.create({
             title: item.title,
-            slug: `${baseSlug}-${Date.now().toString(36)}`,
+            slug: `${baseSlug}-${hash}`,
             snippet: item.contentSnippet?.slice(0, 300) || '',
-            content: item.content || item.contentSnippet || '',
+            content: item.contentEncoded || item.content || item.contentSnippet || '',
             imageUrl,
             category,
             sourceName: source.name,
@@ -127,7 +153,7 @@ class NewsService {
       }
     }
 
-    return { synced, skipped };
+    return { synced, skipped, upgraded };
   }
 
   /**

@@ -20,26 +20,26 @@ topRouter.get('/', async (req: Request, res: Response): Promise<void> => {
 
     switch (type) {
       case 'trending':
-        // Trending: Recent popularity and high ratings
-        sortObj = { 'timeline.scores.anilist.popularity': -1, 'timeline.year': -1 };
+        // Trending: Recent popularity and high ratings on primary franchise entry
+        sortObj = { 'timeline.0.scores.anilist.popularity': -1, 'timeline.0.year': -1 };
         break;
 
       case 'rated':
         // Anime Awards & All-Time Highest Rated (MAL & AniList combined)
-        mongoQuery['timeline.scores.combinedAverage'] = { $gt: 0 };
-        sortObj = { 'timeline.scores.combinedAverage': -1 };
+        mongoQuery['timeline.0.scores.combinedAverage'] = { $gt: 0 };
+        sortObj = { 'timeline.0.scores.combinedAverage': -1 };
         break;
 
       case 'movies':
         // Top Anime Movies
         mongoQuery['timeline.format'] = new RegExp('^movie$', 'i');
-        sortObj = { 'timeline.scores.combinedAverage': -1 };
+        sortObj = { 'timeline.0.scores.combinedAverage': -1 };
         break;
 
       case 'airing':
         // Currently Airing Seasons
         mongoQuery['timeline.status'] = new RegExp('^releasing$', 'i');
-        sortObj = { 'timeline.year': -1, 'timeline.scores.combinedAverage': -1 };
+        sortObj = { 'timeline.0.year': -1, 'timeline.0.scores.combinedAverage': -1 };
         break;
 
       case 'upcoming':
@@ -49,13 +49,14 @@ topRouter.get('/', async (req: Request, res: Response): Promise<void> => {
           { 'timeline.status': new RegExp('^not_yet_released$', 'i') },
           { 'timeline.year': { $gte: currentYear } },
         ];
-        sortObj = { 'timeline.year': 1, 'timeline.scores.combinedAverage': -1 };
+        sortObj = { 'timeline.0.year': 1, 'timeline.0.scores.combinedAverage': -1 };
         break;
 
       case 'popular':
       default:
-        // All-Time Most Popular
-        sortObj = { 'timeline.scores.mal.popularity': 1, 'timeline.scores.combinedAverage': -1 };
+        // All-Time Most Popular: filter for rank > 0 to prevent nulls sorting first in ascending order
+        mongoQuery['timeline.0.scores.mal.popularity'] = { $gt: 0 };
+        sortObj = { 'timeline.0.scores.mal.popularity': 1, 'timeline.0.scores.combinedAverage': -1 };
         break;
     }
 

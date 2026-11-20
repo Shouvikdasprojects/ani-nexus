@@ -35,10 +35,14 @@ seasonRouter.get('/now', async (req: Request, res: Response): Promise<void> => {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const skip = (page - 1) * limit;
 
-    // 1. Check local MongoDB Atlas
+    // 1. Check local MongoDB Atlas with precise array element matching
     const query = {
-      'timeline.year': year,
-      'timeline.status': { $in: ['RELEASING', 'FINISHED'] },
+      timeline: {
+        $elemMatch: {
+          year,
+          status: { $in: ['RELEASING', 'FINISHED'] },
+        },
+      },
     };
 
     let [total, results] = await Promise.all([
@@ -62,38 +66,40 @@ seasonRouter.get('/now', async (req: Request, res: Response): Promise<void> => {
         .lean(),
     ]);
 
-    // 2. Fallback to AniList GraphQL if local database has few entries for current season
+    // 2. Non-blocking asynchronous background ingestion if few entries in database
     if (results.length < 5) {
-      const gqlQuery = `
-        query ($year: Int, $season: MediaSeason, $perPage: Int) {
-          Page(page: 1, perPage: $perPage) {
-            media(season: $season, seasonYear: $year, type: ANIME, sort: [POPULARITY_DESC]) {
-              id
-              idMal
-              title { english romaji native }
+      setImmediate(async () => {
+        try {
+          const gqlQuery = `
+            query ($year: Int, $season: MediaSeason, $perPage: Int) {
+              Page(page: 1, perPage: $perPage) {
+                media(season: $season, seasonYear: $year, type: ANIME, sort: [POPULARITY_DESC]) {
+                  id
+                  idMal
+                }
+              }
+            }
+          `;
+
+          const aniRes = await (anilistService as any).fetchGraphQL(gqlQuery, {
+            year,
+            season,
+            perPage: 6,
+          });
+
+          const list = aniRes?.Page?.media || [];
+          for (const item of list) {
+            if (item.idMal) {
+              const alreadyExists = await Franchise.exists({ 'timeline.ids.malId': item.idMal });
+              if (!alreadyExists) {
+                await franchiseBuilder.buildFromMalId(item.idMal);
+              }
             }
           }
+        } catch (err: any) {
+          console.warn('[Seasons Now Background Ingestion]:', err.message);
         }
-      `;
-
-      try {
-        const aniRes = await (anilistService as any).fetchGraphQL(gqlQuery, {
-          year,
-          season,
-          perPage: 10,
-        });
-
-        const list = aniRes?.Page?.media || [];
-        for (const item of list) {
-          if (item.idMal && !results.some((r) => r.slug.includes(item.idMal))) {
-            const built = await franchiseBuilder.buildFromMalId(item.idMal);
-            if (built) results.push(built.toObject() as any);
-          }
-        }
-        total = results.length;
-      } catch (err: any) {
-        console.warn('[Seasons Now Fallback Error]:', err.message);
-      }
+      });
     }
 
     res.json({
@@ -187,7 +193,13 @@ seasonRouter.get('/:year/:season', async (req: Request, res: Response): Promise<
     const page = Math.max(Number(req.query.page) || 1, 1);
     const skip = (page - 1) * limit;
 
-    const query = { 'timeline.year': year };
+    const query = {
+      timeline: {
+        $elemMatch: {
+          year,
+        },
+      },
+    };
 
     const [total, results] = await Promise.all([
       Franchise.countDocuments(query),
