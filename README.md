@@ -88,7 +88,7 @@ for title in res.get("data", [])[:5]:
 
 ---
 
-## 📋 Complete REST Endpoints Reference (19 Live Endpoints)
+## 📋 Complete REST Endpoints Reference (28 Live Endpoints)
 
 | Category | Method | Route | Description |
 | :--- | :---: | :--- | :--- |
