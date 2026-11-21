@@ -22,3 +22,7 @@ yarn-error.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Backups and Local Run Artifacts
+backups/
+src/scripts/
