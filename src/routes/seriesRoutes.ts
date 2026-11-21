@@ -148,3 +148,72 @@ seriesRouter.get('/:slug/episodes', async (req: Request, res: Response): Promise
     });
   }
 });
+
+/**
+ * GET /api/v1/series/:slug/staff
+ * Animation Studios & Production Staff with Verified Social Media Links
+ */
+seriesRouter.get('/:slug/staff', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const slug = String(req.params.slug);
+    const franchise = await Franchise.findOne({ slug }, { studios: 1, staff: 1, titles: 1 }).lean();
+
+    if (!franchise) {
+      res.status(404).json({
+        success: false,
+        error: `Franchise '${slug}' not found.`,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        franchise: franchise.titles?.primary,
+        slug,
+        studios: franchise.studios || [],
+        totalStaff: franchise.staff?.length || 0,
+        staff: franchise.staff || [],
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
+
+/**
+ * GET /api/v1/series/:slug/characters
+ * Main & Supporting Characters with Multi-Lingual Voice Actors
+ */
+seriesRouter.get('/:slug/characters', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const slug = String(req.params.slug);
+    const franchise = await Franchise.findOne({ slug }, { mainCharacters: 1, titles: 1 }).lean();
+
+    if (!franchise) {
+      res.status(404).json({
+        success: false,
+        error: `Franchise '${slug}' not found.`,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        franchise: franchise.titles?.primary,
+        slug,
+        totalCharacters: franchise.mainCharacters?.length || 0,
+        characters: franchise.mainCharacters || [],
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});

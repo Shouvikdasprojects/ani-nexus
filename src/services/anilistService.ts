@@ -79,10 +79,46 @@ class AniListService {
             timeUntilAiring
             episode
           }
-          studios(isMain: true) {
-            nodes { name }
+          studios {
+            edges {
+              isMain
+              node {
+                id
+                name
+                isAnimationStudio
+                siteUrl
+                favourites
+              }
+            }
           }
-          characters(perPage: 25, sort: [ROLE, RELEVANCE]) {
+          staff(perPage: 25, sort: [RELEVANCE]) {
+            edges {
+              role
+              node {
+                id
+                name {
+                  full
+                  native
+                  alternative
+                }
+                image {
+                  large
+                }
+                description(asHtml: false)
+                primaryOccupations
+                gender
+                dateOfBirth { year month day }
+                dateOfDeath { year month day }
+                age
+                yearsActive
+                homeTown
+                bloodType
+                siteUrl
+                favourites
+              }
+            }
+          }
+          characters(perPage: 30, sort: [ROLE, RELEVANCE]) {
             edges {
               role
               node {
@@ -101,6 +137,7 @@ class AniListService {
                 bloodType
                 description(asHtml: false)
                 favourites
+                siteUrl
               }
               voiceActorRoles(sort: [RELEVANCE]) {
                 voiceActor {
@@ -116,6 +153,8 @@ class AniListService {
                   homeTown
                   dateOfBirth { year month day }
                   description(asHtml: false)
+                  siteUrl
+                  favourites
                 }
               }
             }

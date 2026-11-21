@@ -25,6 +25,8 @@ export interface IVoiceActor {
   homeTown?: string | null;
   birthday?: string | null;
   bio?: string | null;
+  siteUrl?: string | null;
+  favourites?: number | null;
   famousOtherRoles?: Array<{ character: string; anime: string }>;
 }
 
@@ -44,7 +46,46 @@ export interface ICharacter {
     bloodType?: string | null;
     about?: string | null;
   };
+  siteUrl?: string | null;
+  favourites?: number | null;
   voiceActors: IVoiceActor[];
+}
+
+export interface IStudio {
+  studioId: number;
+  name: string;
+  isAnimationStudio: boolean;
+  isMain: boolean;
+  siteUrl?: string | null;
+  favourites?: number | null;
+}
+
+export interface IStaffSocial {
+  platform: string;
+  url: string;
+}
+
+export interface IStaffMember {
+  staffId: number;
+  role: string;
+  name: {
+    full: string;
+    native?: string | null;
+    alternative: string[];
+  };
+  image?: string | null;
+  primaryOccupations: string[];
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  dateOfDeath?: string | null;
+  age?: number | null;
+  yearsActive?: number[];
+  homeTown?: string | null;
+  bloodType?: string | null;
+  bio?: string | null;
+  siteUrl?: string | null;
+  favourites?: number | null;
+  socials: IStaffSocial[];
 }
 
 export interface ITimelinePart {
@@ -133,6 +174,8 @@ export interface IFranchise extends Document {
   };
   totalParts: number;
   totalEpisodes: number;
+  studios: IStudio[];
+  staff: IStaffMember[];
   mainCharacters: ICharacter[];
   timeline: ITimelinePart[];
   lastUpdated: Date;
@@ -168,6 +211,8 @@ const VoiceActorSchema = new Schema<IVoiceActor>(
     homeTown: { type: String, default: null },
     birthday: { type: String, default: null },
     bio: { type: String, default: null },
+    siteUrl: { type: String, default: null },
+    favourites: { type: Number, default: 0 },
     famousOtherRoles: [
       {
         character: { type: String },
@@ -195,7 +240,55 @@ const CharacterSchema = new Schema<ICharacter>(
       bloodType: { type: String, default: null },
       about: { type: String, default: null },
     },
+    siteUrl: { type: String, default: null },
+    favourites: { type: Number, default: 0 },
     voiceActors: [VoiceActorSchema],
+  },
+  { _id: false }
+);
+
+const StudioSchema = new Schema<IStudio>(
+  {
+    studioId: { type: Number, required: true },
+    name: { type: String, required: true },
+    isAnimationStudio: { type: Boolean, default: true },
+    isMain: { type: Boolean, default: false },
+    siteUrl: { type: String, default: null },
+    favourites: { type: Number, default: 0 },
+  },
+  { _id: false }
+);
+
+const StaffSocialSchema = new Schema<IStaffSocial>(
+  {
+    platform: { type: String, required: true },
+    url: { type: String, required: true },
+  },
+  { _id: false }
+);
+
+const StaffMemberSchema = new Schema<IStaffMember>(
+  {
+    staffId: { type: Number, required: true },
+    role: { type: String, required: true },
+    name: {
+      full: { type: String, required: true },
+      native: { type: String, default: null },
+      alternative: [{ type: String }],
+    },
+    image: { type: String, default: null },
+    primaryOccupations: [{ type: String }],
+    gender: { type: String, default: null },
+    dateOfBirth: { type: String, default: null },
+    dateOfDeath: { type: String, default: null },
+    age: { type: Number, default: null },
+    yearsActive: [{ type: Number }],
+    homeTown: { type: String, default: null },
+    bloodType: { type: String, default: null },
+    bio: { type: String, default: null },
+    siteUrl: { type: String, default: null },
+    favourites: { type: Number, default: 0 },
+    socials: [StaffSocialSchema],
   },
   { _id: false }
 );
@@ -322,6 +415,8 @@ const FranchiseSchema = new Schema<IFranchise>(
     },
     totalParts: { type: Number, default: 1 },
     totalEpisodes: { type: Number, default: 0 },
+    studios: [StudioSchema],
+    staff: [StaffMemberSchema],
     mainCharacters: [CharacterSchema],
     timeline: [TimelinePartSchema],
     lastUpdated: { type: Date, default: Date.now },
@@ -336,6 +431,8 @@ const FranchiseSchema = new Schema<IFranchise>(
 FranchiseSchema.index({ 'timeline.ids.malId': 1 });
 FranchiseSchema.index({ 'timeline.ids.aniId': 1 });
 FranchiseSchema.index({ 'timeline.ids.tmdbId': 1 });
+FranchiseSchema.index({ 'studios.studioId': 1 });
+FranchiseSchema.index({ 'staff.staffId': 1 });
 
 // Full text fuzzy search index
 FranchiseSchema.index({
@@ -345,6 +442,8 @@ FranchiseSchema.index({
   'titles.native': 'text',
   'titles.synonyms': 'text',
   'mainCharacters.name.full': 'text',
+  'staff.name.full': 'text',
+  'studios.name': 'text',
 });
 
 export const Franchise = mongoose.model<IFranchise>('Franchise', FranchiseSchema);

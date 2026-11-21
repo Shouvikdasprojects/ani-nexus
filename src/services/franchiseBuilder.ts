@@ -1,4 +1,4 @@
-import { Franchise, IFranchise, ITimelinePart, ICharacter, IEpisode } from '../models/Franchise.js';
+import { Franchise, IFranchise, ITimelinePart, ICharacter, IEpisode, IStudio, IStaffMember, IStaffSocial } from '../models/Franchise.js';
 import { anilistService } from './anilistService.js';
 import { malService } from './malService.js';
 import { tmdbService } from './tmdbService.js';
@@ -14,6 +14,55 @@ export class FranchiseBuilder {
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
+  }
+
+  /**
+   * Intelligently extracts external social media & blog links from staff description markdown
+   */
+  private extractStaffSocials(description: string | null): IStaffSocial[] {
+    if (!description) return [];
+    const socials: IStaffSocial[] = [];
+    const seenUrls = new Set<string>();
+
+    const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g;
+    let match;
+    while ((match = linkRegex.exec(description)) !== null) {
+      const label = match[1].trim();
+      const url = match[2].trim();
+
+      // Filter out internal database references (AniList/MAL internal links)
+      if (url.includes('anilist.co') || url.includes('myanimelist.net')) continue;
+
+      const lower = (label + ' ' + url).toLowerCase();
+      let platform = label;
+      if (lower.includes('twitter') || lower.includes('x.com')) platform = 'Twitter / X';
+      else if (lower.includes('instagram')) platform = 'Instagram';
+      else if (lower.includes('facebook')) platform = 'Facebook';
+      else if (lower.includes('pixiv')) platform = 'Pixiv';
+      else if (lower.includes('youtube')) platform = 'YouTube';
+      else if (lower.includes('tumblr')) platform = 'Tumblr';
+      else if (lower.includes('blog') || lower.includes('livedoor') || lower.includes('ameblo')) platform = 'Official Blog';
+      else if (lower.includes('site') || lower.includes('website')) platform = 'Official Website';
+
+      if (!seenUrls.has(url)) {
+        seenUrls.add(url);
+        socials.push({ platform, url });
+      }
+    }
+
+    // Capture direct un-hyperlinked twitter handles or URLs if present
+    const bareTwitterRegex = /(?:https?:\/\/)?(?:www\.)?(?:twitter\.com|x\.com)\/([a-zA-Z0-9_]{3,20})/gi;
+    let twMatch;
+    while ((twMatch = bareTwitterRegex.exec(description)) !== null) {
+      const handle = twMatch[1];
+      const url = `https://x.com/${handle}`;
+      if (!seenUrls.has(url) && !handle.toLowerCase().includes('intent')) {
+        seenUrls.add(url);
+        socials.push({ platform: 'Twitter / X', url });
+      }
+    }
+
+    return socials;
   }
 
   /**
@@ -68,7 +117,97 @@ export class FranchiseBuilder {
       tmdbEpisodes = eps;
     }
 
-    // 5. Verified Dub & Sub Extraction (Official Voice Actors credit inspection)
+    // 5. Extraction of Studios & Animation Houses
+    const studios: IStudio[] = [];
+    const seenStudioNames = new Set<string>();
+
+    if (aniMedia.studios?.edges && Array.isArray(aniMedia.studios.edges)) {
+      for (const edge of aniMedia.studios.edges) {
+        const node = edge.node;
+        if (!node || !node.name) continue;
+        const name = node.name.trim();
+        if (seenStudioNames.has(name.toLowerCase())) continue;
+        seenStudioNames.add(name.toLowerCase());
+
+        studios.push({
+          studioId: node.id || 0,
+          name,
+          isAnimationStudio: Boolean(node.isAnimationStudio ?? edge.isMain),
+          isMain: Boolean(edge.isMain),
+          siteUrl: node.siteUrl || null,
+          favourites: node.favourites || 0,
+        });
+      }
+    }
+
+    // Fallback/enrichment from MAL studios
+    if (malData?.studios && Array.isArray(malData.studios)) {
+      for (const s of malData.studios) {
+        if (!s || !s.name) continue;
+        const name = s.name.trim();
+        if (!seenStudioNames.has(name.toLowerCase())) {
+          seenStudioNames.add(name.toLowerCase());
+          studios.push({
+            studioId: s.id || 0,
+            name,
+            isAnimationStudio: true,
+            isMain: studios.length === 0,
+            siteUrl: null,
+            favourites: 0,
+          });
+        }
+      }
+    }
+
+    // 6. Extraction of Key Staff Members (Directors, Mangaka, Designers, Composers) with Verified Socials
+    const staff: IStaffMember[] = [];
+    const seenStaffIds = new Set<number>();
+
+    if (aniMedia.staff?.edges && Array.isArray(aniMedia.staff.edges)) {
+      for (const edge of aniMedia.staff.edges) {
+        const node = edge.node;
+        if (!node) continue;
+        if (seenStaffIds.has(node.id)) continue;
+        seenStaffIds.add(node.id);
+
+        const dob = node.dateOfBirth;
+        const dobStr = (dob?.year && dob?.month && dob?.day)
+          ? `${dob.year}-${String(dob.month).padStart(2, '0')}-${String(dob.day).padStart(2, '0')}`
+          : (dob?.year ? `${dob.year}` : null);
+
+        const dod = node.dateOfDeath;
+        const dodStr = (dod?.year && dod?.month && dod?.day)
+          ? `${dod.year}-${String(dod.month).padStart(2, '0')}-${String(dod.day).padStart(2, '0')}`
+          : (dod?.year ? `${dod.year}` : null);
+
+        const socials = this.extractStaffSocials(node.description);
+
+        staff.push({
+          staffId: node.id,
+          role: edge.role || 'Staff',
+          name: {
+            full: node.name?.full || 'Unknown',
+            native: node.name?.native || null,
+            alternative: node.name?.alternative || [],
+          },
+          image: node.image?.large || node.image?.medium || null,
+          primaryOccupations: node.primaryOccupations || [],
+          gender: node.gender || null,
+          dateOfBirth: dobStr,
+          dateOfDeath: dodStr,
+          age: node.age || null,
+          yearsActive: node.yearsActive || [],
+          homeTown: node.homeTown || null,
+          bloodType: node.bloodType || null,
+          bio: node.description || null,
+          siteUrl: node.siteUrl || null,
+          favourites: node.favourites || 0,
+          socials,
+        });
+      }
+    }
+
+    // 7. Verified Dub & Sub Extraction (Official Voice Actors credit inspection)
     const verifiedDubs = new Set<string>();
     const characters: ICharacter[] = [];
 
@@ -99,6 +238,8 @@ export class FranchiseBuilder {
               homeTown: va.homeTown || null,
               birthday: va.dateOfBirth?.year ? `${va.dateOfBirth.year}-${va.dateOfBirth.month}-${va.dateOfBirth.day}` : null,
               bio: va.description || null,
+              siteUrl: va.siteUrl || null,
+              favourites: va.favourites || 0,
               famousOtherRoles: [],
             });
           }
@@ -120,6 +261,8 @@ export class FranchiseBuilder {
             bloodType: charNode.bloodType || null,
             about: charNode.description || null,
           },
+          siteUrl: charNode.siteUrl || null,
+          favourites: charNode.favourites || 0,
           voiceActors,
         });
       }
@@ -128,7 +271,7 @@ export class FranchiseBuilder {
     // Standard audio dub fallback: at minimum Japanese is verified
     if (!verifiedDubs.has('Japanese')) verifiedDubs.add('Japanese');
 
-    // 6. AnimeThemes & MAL OP / ED Songs Enrichment
+    // 8. AnimeThemes & MAL OP / ED Songs Enrichment
     const themesData = await themesService.getAnimeThemes(malId, primaryTitle);
 
     const parseMalSong = (item: any) => {
@@ -476,6 +619,8 @@ export class FranchiseBuilder {
         contentRating,
         totalParts: timeline.length,
         totalEpisodes: timeline.reduce((acc, t) => acc + (t.episodes?.length || 0), 0) || totalEpsCount,
+        studios,
+        staff: staff.slice(0, 30),
         mainCharacters: characters.slice(0, 30),
         timeline,
         lastUpdated: new Date(),
