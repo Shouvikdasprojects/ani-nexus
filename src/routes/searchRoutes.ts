@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { Franchise } from '../models/Franchise.js';
+import { getSecondaryFranchiseModel } from '../config/database.js';
 import { malService } from '../services/malService.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
 
@@ -50,32 +51,48 @@ searchRouter.get('/', async (req: Request, res: Response): Promise<void> => {
 
     if (results.length === 0) {
       const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      results = await Franchise.find(
-        {
-          $or: [
-            { 'titles.primary': regex },
-            { 'titles.english': regex },
-            { 'titles.romaji': regex },
-            { 'titles.native': regex },
-            { 'titles.synonyms': regex },
-            { slug: regex },
-          ],
-        },
-        {
-          titles: 1,
-          slug: 1,
-          images: 1,
-          classification: 1,
-          contentRating: 1,
-          'timeline.scores': 1,
-          'timeline.languages': 1,
-          'timeline.year': 1,
-          totalEpisodes: 1,
-        }
-      )
+      const projection = {
+        titles: 1,
+        slug: 1,
+        images: 1,
+        classification: 1,
+        contentRating: 1,
+        'timeline.scores': 1,
+        'timeline.languages': 1,
+        'timeline.year': 1,
+        totalEpisodes: 1,
+      };
+      const orFilter = {
+        $or: [
+          { 'titles.primary': regex },
+          { 'titles.english': regex },
+          { 'titles.romaji': regex },
+          { 'titles.native': regex },
+          { 'titles.synonyms': regex },
+          { slug: regex },
+        ],
+      };
+
+      // Search primary first
+      results = await Franchise.find(orFilter, projection)
         .sort({ 'timeline.0.scores.combinedAverage': -1 })
         .limit(limit)
         .lean();
+
+      // If no primary results, search secondary vault (which holds full 634+ franchises)
+      if (results.length === 0) {
+        const SecModel = getSecondaryFranchiseModel();
+        if (SecModel) {
+          try {
+            results = await SecModel.find(orFilter, projection)
+              .sort({ 'timeline.0.scores.combinedAverage': -1 })
+              .limit(limit)
+              .lean();
+          } catch (secErr: any) {
+            console.warn('[Secondary Search Warning]:', secErr.message);
+          }
+        }
+      }
     }
 
     // 2. Cache-Aside Fallback: If no matches in DB, search MAL & auto-ingest top result

@@ -48,7 +48,12 @@ staffRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<void>
         $or: [{ staffId: numericId }, { malId: numericId }],
       }).lean();
     } else {
-      person = await StaffModel.findOne({ slug: idOrSlug }).lean();
+      person = await StaffModel.findOne({
+        $or: [
+          { slug: idOrSlug },
+          { slug: new RegExp(`^${idOrSlug}`, 'i') },
+        ],
+      }).lean();
     }
 
     // On-Demand Ingestion: if not in database, attempt real-time fetch & cache

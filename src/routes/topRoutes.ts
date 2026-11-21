@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { Franchise } from '../models/Franchise.js';
+import { getSecondaryFranchiseModel } from '../config/database.js';
 
 export const topRouter = Router();
 
@@ -60,9 +61,25 @@ topRouter.get('/', async (req: Request, res: Response): Promise<void> => {
         break;
     }
 
+    const SecModel = getSecondaryFranchiseModel();
+    let targetModel: any = Franchise;
+    if (SecModel) {
+      try {
+        const [secCount, priCount] = await Promise.all([
+          SecModel.countDocuments(mongoQuery),
+          Franchise.countDocuments(mongoQuery),
+        ]);
+        if (secCount > priCount) {
+          targetModel = SecModel;
+        }
+      } catch {
+        targetModel = Franchise;
+      }
+    }
+
     const [total, results] = await Promise.all([
-      Franchise.countDocuments(mongoQuery),
-      Franchise.find(mongoQuery, {
+      targetModel.countDocuments(mongoQuery),
+      targetModel.find(mongoQuery, {
         titles: 1,
         slug: 1,
         images: 1,

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Franchise } from '../models/Franchise.js';
 import { Genre } from '../models/Genre.js';
+import { getSecondaryFranchiseModel } from '../config/database.js';
 
 export const genreRouter = Router();
 export const filterRouter = Router();
@@ -95,9 +96,25 @@ export async function handleAnimeFilter(req: Request, res: Response): Promise<vo
       sortObj = { 'timeline.year': -1 };
     }
 
+    const SecModel = getSecondaryFranchiseModel();
+    let targetModel: any = Franchise;
+    if (SecModel) {
+      try {
+        const [secCount, priCount] = await Promise.all([
+          SecModel.countDocuments(mongoQuery),
+          Franchise.countDocuments(mongoQuery),
+        ]);
+        if (secCount > priCount) {
+          targetModel = SecModel;
+        }
+      } catch {
+        targetModel = Franchise;
+      }
+    }
+
     const [total, results] = await Promise.all([
-      Franchise.countDocuments(mongoQuery),
-      Franchise.find(mongoQuery, {
+      targetModel.countDocuments(mongoQuery),
+      targetModel.find(mongoQuery, {
         titles: 1,
         slug: 1,
         images: 1,

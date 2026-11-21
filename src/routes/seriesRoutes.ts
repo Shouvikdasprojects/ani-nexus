@@ -88,7 +88,7 @@ seriesRouter.get('/:slug', async (req: Request, res: Response): Promise<void> =>
 seriesRouter.get('/:slug/timeline', async (req: Request, res: Response): Promise<void> => {
   try {
     const slug = String(req.params.slug);
-    const franchise = await findFranchise({ slug }, { timeline: 1, titles: 1 });
+    const franchise = await findFranchise({ slug }, { timeline: 1, titles: 1, images: 1 });
 
     if (!franchise) {
       res.status(404).json({
@@ -98,12 +98,18 @@ seriesRouter.get('/:slug/timeline', async (req: Request, res: Response): Promise
       return;
     }
 
+    const timelineWithImages = franchise.timeline?.map((part: any) => ({
+      ...part,
+      images: part.images?.poster ? part.images : franchise.images,
+    })) || [];
+
     res.json({
       success: true,
       data: {
         franchise: franchise.titles?.primary,
         slug,
-        timeline: franchise.timeline,
+        images: franchise.images,
+        timeline: timelineWithImages,
       },
     });
   } catch (err: any) {

@@ -48,7 +48,12 @@ characterRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<v
         $or: [{ characterId: numericId }, { malId: numericId }],
       }).lean();
     } else {
-      character = await CharacterModel.findOne({ slug: idOrSlug }).lean();
+      character = await CharacterModel.findOne({
+        $or: [
+          { slug: idOrSlug },
+          { slug: new RegExp(`^${idOrSlug}`, 'i') },
+        ],
+      }).lean();
     }
 
     // On-Demand Ingestion: if not in database, attempt real-time fetch & cache
