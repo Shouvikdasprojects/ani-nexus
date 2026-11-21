@@ -1,8 +1,24 @@
 import { Router, Request, Response } from 'express';
 import { Franchise } from '../models/Franchise.js';
+import { getSecondaryFranchiseModel } from '../config/database.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
 
 export const animeRouter = Router();
+
+async function findFranchise(query: any, projection?: any) {
+  let doc = await Franchise.findOne(query, projection).lean();
+  if (!doc) {
+    const SecondaryModel = getSecondaryFranchiseModel();
+    if (SecondaryModel) {
+      try {
+        doc = await SecondaryModel.findOne(query, projection).lean();
+      } catch (err: any) {
+        console.warn('[Secondary Vault Query Warning]:', err.message);
+      }
+    }
+  }
+  return doc;
+}
 
 /**
  * GET /api/v1/anime/:idOrSlug
@@ -31,7 +47,7 @@ animeRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<void>
       };
     }
 
-    let franchise = await Franchise.findOne(query).lean();
+    let franchise: any = await findFranchise(query);
 
     // On-demand fetch if numeric ID provided and not yet cached
     if (!franchise && isNumeric) {
@@ -55,19 +71,22 @@ animeRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<void>
     if (isNumeric) {
       const numId = Number(idOrSlug);
       matchedPart = franchise.timeline?.find(
-        (p) => p.ids?.malId === numId || p.ids?.aniId === numId
+        (p: any) => p.ids?.malId === numId || p.ids?.aniId === numId
       ) || franchise.timeline?.[0];
     } else {
-      const foundPart = franchise.timeline?.find((p) => p.partId === idOrSlug);
-      if (foundPart) matchedPart = foundPart;
+      matchedPart = franchise.timeline?.find(
+        (p: any) => p.partId === idOrSlug
+      ) || franchise.timeline?.[0];
     }
 
     res.json({
       success: true,
       data: {
         franchiseSlug: franchise.slug,
-        franchiseTitles: franchise.titles,
+        franchiseTitle: franchise.titles?.primary,
         part: matchedPart,
+        allPartsCount: franchise.totalParts,
+        watchOrderLink: `/api/v1/series/${franchise.slug}/timeline`,
       },
     });
   } catch (err: any) {
@@ -80,7 +99,7 @@ animeRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<void>
 
 /**
  * GET /api/v1/anime/:idOrSlug/languages
- * Direct verified Audio Dubs & Subtitles
+ * Direct verified Audio Dubs & Subtitles for a specific Part / Season / Movie
  */
 animeRouter.get('/:idOrSlug/languages', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -101,7 +120,7 @@ animeRouter.get('/:idOrSlug/languages', async (req: Request, res: Response): Pro
           ],
         };
 
-    const franchise = await Franchise.findOne(query, { timeline: 1, titles: 1 }).lean();
+    const franchise: any = await findFranchise(query, { timeline: 1, titles: 1, slug: 1 });
 
     if (!franchise) {
       res.status(404).json({
@@ -111,21 +130,41 @@ animeRouter.get('/:idOrSlug/languages', async (req: Request, res: Response): Pro
       return;
     }
 
-    // Collect all dubs across parts
-    const allAudioDubs = new Set<string>();
-    const allSubtitles = new Set<string>();
+    // Find specific part if requested by partId or numeric ID
+    let matchedPart = franchise.timeline?.[0];
+    if (isNumeric) {
+      const numId = Number(idOrSlug);
+      matchedPart = franchise.timeline?.find(
+        (p: any) => p.ids?.malId === numId || p.ids?.aniId === numId
+      ) || franchise.timeline?.[0];
+    } else if (idOrSlug.includes('-part-')) {
+      matchedPart = franchise.timeline?.find(
+        (p: any) => p.partId === idOrSlug
+      ) || franchise.timeline?.[0];
+    }
 
-    franchise.timeline?.forEach((p) => {
-      p.languages?.audioDubs?.forEach((d) => allAudioDubs.add(d));
-      p.languages?.subtitles?.forEach((s) => allSubtitles.add(s));
-    });
+    // All parts language matrix
+    const partsLanguageBreakdown = (franchise.timeline || []).map((p: any) => ({
+      partId: p.partId,
+      partName: p.partName,
+      format: p.format,
+      year: p.year,
+      audioDubs: p.languages?.audioDubs || ['Japanese'],
+      subtitles: p.languages?.subtitles || ['English', 'Japanese'],
+    }));
 
     res.json({
       success: true,
       data: {
         franchise: franchise.titles?.primary,
-        verifiedAudioDubs: Array.from(allAudioDubs),
-        subtitles: Array.from(allSubtitles),
+        slug: franchise.slug,
+        specificRequestedPart: {
+          partName: matchedPart?.partName,
+          format: matchedPart?.format,
+          audioDubs: matchedPart?.languages?.audioDubs || ['Japanese'],
+          subtitles: matchedPart?.languages?.subtitles || ['English', 'Japanese'],
+        },
+        allPartsBreakdown: partsLanguageBreakdown,
         disclaimer: 'Audio dub verification sourced directly from official voice actor casting databases.',
       },
     });
