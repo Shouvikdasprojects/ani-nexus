@@ -18,13 +18,14 @@ class AniListService {
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          'User-Agent': 'AniNexus/1.0',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         },
         body: JSON.stringify({ query, variables }),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(12000),
       });
 
       if (!res.ok) {
+        console.warn(`[AniList Service Warning]: HTTP ${res.status} ${res.statusText}`);
         return null;
       }
 

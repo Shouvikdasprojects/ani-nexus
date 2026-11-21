@@ -1,9 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { Franchise } from '../models/Franchise.js';
+import { getSecondaryFranchiseModel } from '../config/database.js';
 import { anilistService } from '../services/anilistService.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
 
 export const seasonRouter = Router();
+
+function getTargetModel(): any {
+  return getSecondaryFranchiseModel() || Franchise;
+}
 
 type AnimeSeason = 'WINTER' | 'SPRING' | 'SUMMER' | 'FALL';
 
@@ -45,9 +50,10 @@ seasonRouter.get('/now', async (req: Request, res: Response): Promise<void> => {
       },
     };
 
+    const targetModel = getTargetModel();
     let [total, results] = await Promise.all([
-      Franchise.countDocuments(query),
-      Franchise.find(query, {
+      targetModel.countDocuments(query),
+      targetModel.find(query, {
         titles: 1,
         slug: 1,
         images: 1,
@@ -135,9 +141,10 @@ seasonRouter.get('/upcoming', async (req: Request, res: Response): Promise<void>
       ],
     };
 
+    const targetModel = getTargetModel();
     const [total, results] = await Promise.all([
-      Franchise.countDocuments(query),
-      Franchise.find(query, {
+      targetModel.countDocuments(query),
+      targetModel.find(query, {
         titles: 1,
         slug: 1,
         images: 1,
@@ -203,9 +210,10 @@ seasonRouter.get('/:year/:season', async (req: Request, res: Response): Promise<
       query['timeline.format'] = formatFilter;
     }
 
+    const targetModel = getTargetModel();
     const [dbTotal, dbResults] = await Promise.all([
-      Franchise.countDocuments(query),
-      Franchise.find(query, {
+      targetModel.countDocuments(query),
+      targetModel.find(query, {
         titles: 1,
         slug: 1,
         images: 1,
