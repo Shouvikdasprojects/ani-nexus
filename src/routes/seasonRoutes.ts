@@ -173,7 +173,8 @@ seasonRouter.get('/upcoming', async (req: Request, res: Response): Promise<void>
 
 /**
  * GET /api/v1/seasons/:year/:season
- * Archive for specific season (e.g. /api/v1/seasons/2024/fall)
+ * Archive for specific season with full AniChart parity (e.g. /api/v1/seasons/2026/fall)
+ * Supports query params: ?format=TV|MOVIE|OVA|ONA|SPECIAL&page=1&limit=50&live=true
  */
 seasonRouter.get('/:year/:season', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -189,19 +190,20 @@ seasonRouter.get('/:year/:season', async (req: Request, res: Response): Promise<
       return;
     }
 
-    const limit = Math.min(Number(req.query.limit) || 20, 50);
+    const limit = Math.min(Number(req.query.limit) || 25, 50);
     const page = Math.max(Number(req.query.page) || 1, 1);
-    const skip = (page - 1) * limit;
+    const formatFilter = req.query.format ? String(req.query.format).toUpperCase() : undefined;
+    const forceLive = req.query.live === 'true';
 
-    const query = {
-      timeline: {
-        $elemMatch: {
-          year,
-        },
-      },
+    // 1. Check local MongoDB Atlas
+    const query: Record<string, any> = {
+      'timeline.year': year,
     };
+    if (formatFilter) {
+      query['timeline.format'] = formatFilter;
+    }
 
-    const [total, results] = await Promise.all([
+    const [dbTotal, dbResults] = await Promise.all([
       Franchise.countDocuments(query),
       Franchise.find(query, {
         titles: 1,
@@ -209,26 +211,131 @@ seasonRouter.get('/:year/:season', async (req: Request, res: Response): Promise<
         images: 1,
         classification: 1,
         contentRating: 1,
+        studios: 1,
         'timeline.scores': 1,
         'timeline.languages': 1,
         'timeline.year': 1,
         'timeline.format': 1,
+        'timeline.status': 1,
+        'timeline.trailer': 1,
         totalEpisodes: 1,
       })
         .sort({ 'timeline.0.scores.combinedAverage': -1 })
-        .skip(skip)
+        .skip((page - 1) * limit)
         .limit(limit)
         .lean(),
     ]);
 
+    // 2. If DB has sufficient data and live not forced, return cached MongoDB data
+    if (dbTotal >= 5 && !forceLive) {
+      res.json({
+        success: true,
+        source: 'database',
+        data: {
+          season: seasonInput,
+          year,
+          format: formatFilter || 'ALL',
+          total: dbTotal,
+          page,
+          franchises: dbResults,
+        },
+      });
+      return;
+    }
+
+    // 3. Fallback to Live AniChart Engine: Full seasonal releases with studios & countdowns
+    const liveData = await anilistService.getSeasonalAnime(year, seasonInput, page, limit, formatFilter);
+
+    // Format items to match AniChart specifications
+    const formattedAnime = liveData.media.map((m: any) => {
+      const primaryTitle = m.title?.english || m.title?.romaji || 'Unknown Title';
+      const mainStudio = m.studios?.nodes?.[0]?.name || null;
+
+      let countdown: string | null = null;
+      if (m.nextAiringEpisode?.timeUntilAiring) {
+        const totalSec = Math.max(0, m.nextAiringEpisode.timeUntilAiring);
+        const daysLeft = Math.floor(totalSec / 86400);
+        const hoursLeft = Math.floor((totalSec % 86400) / 3600);
+        const minsLeft = Math.floor((totalSec % 3600) / 60);
+        countdown = daysLeft > 0
+          ? `${daysLeft}d ${hoursLeft}h`
+          : hoursLeft > 0
+          ? `${hoursLeft}h ${minsLeft}m`
+          : `${minsLeft}m`;
+      }
+
+      return {
+        id: m.id,
+        malId: m.idMal || null,
+        title: {
+          primary: primaryTitle,
+          english: m.title?.english || null,
+          romaji: m.title?.romaji || null,
+          native: m.title?.native || null,
+        },
+        format: m.format,
+        status: m.status,
+        episodes: m.episodes || null,
+        durationMinutes: m.duration || null,
+        countryOfOrigin: m.countryOfOrigin || 'JP',
+        source: m.source || 'Original',
+        studio: mainStudio,
+        studios: m.studios?.nodes || [],
+        score: m.averageScore || null,
+        popularity: m.popularity || null,
+        favourites: m.favourites || 0,
+        genres: m.genres || [],
+        description: m.description || null,
+        startDate: m.startDate || null,
+        coverImage: m.coverImage?.extraLarge || m.coverImage?.large || null,
+        bannerImage: m.bannerImage || null,
+        nextAiringEpisode: m.nextAiringEpisode
+          ? {
+              episode: m.nextAiringEpisode.episode,
+              airingAt: new Date(m.nextAiringEpisode.airingAt * 1000).toISOString(),
+              timeUntilAiringSeconds: m.nextAiringEpisode.timeUntilAiring,
+              countdown,
+            }
+          : null,
+        trailer: m.trailer?.id ? {
+          id: m.trailer.id,
+          site: m.trailer.site,
+          url: `https://www.youtube.com/watch?v=${m.trailer.id}`,
+          thumbnail: m.trailer.thumbnail,
+        } : null,
+        externalLinks: m.externalLinks || [],
+      };
+    });
+
+    // Asynchronously ingest top items into MongoDB Atlas in background
+    setImmediate(async () => {
+      try {
+        const topToIngest = liveData.media.slice(0, 3);
+        for (const item of topToIngest) {
+          if (item.idMal) {
+            const exists = await Franchise.exists({ 'timeline.ids.malId': item.idMal });
+            if (!exists) {
+              await franchiseBuilder.buildFromMalId(item.idMal);
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn('[Seasonal On-Demand Ingestion Warning]:', err.message);
+      }
+    });
+
     res.json({
       success: true,
+      source: 'live_engine',
       data: {
         season: seasonInput,
         year,
-        total,
-        page,
-        franchises: results,
+        format: formatFilter || 'ALL',
+        total: liveData.total,
+        page: liveData.page,
+        hasNextPage: liveData.hasNextPage,
+        count: formattedAnime.length,
+        anime: formattedAnime,
       },
     });
   } catch (err: any) {

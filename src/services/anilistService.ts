@@ -189,41 +189,164 @@ class AniListService {
     return data?.Media || null;
   }
 
-  async getAiringSchedule(start: number, end: number, page: number = 1): Promise<any[]> {
+  async getAiringSchedule(start: number, end: number): Promise<any[]> {
+    let allSchedules: any[] = [];
+    let page = 1;
+    let hasNextPage = true;
+
+    while (hasNextPage && page <= 4) {
+      const query = `
+        query ($start: Int, $end: Int, $page: Int) {
+          Page(page: $page, perPage: 50) {
+            pageInfo {
+              hasNextPage
+            }
+            airingSchedules(airingAt_greater: $start, airingAt_lesser: $end, sort: TIME) {
+              id
+              airingAt
+              timeUntilAiring
+              episode
+              media {
+                id
+                idMal
+                title {
+                  romaji
+                  english
+                  native
+                  userPreferred
+                }
+                coverImage {
+                  large
+                  extraLarge
+                }
+                bannerImage
+                format
+                status
+                episodes
+                duration
+                countryOfOrigin
+                genres
+                averageScore
+                popularity
+                description(asHtml: false)
+                studios(isMain: true) {
+                  nodes {
+                    id
+                    name
+                    isAnimationStudio
+                    siteUrl
+                  }
+                }
+                externalLinks {
+                  site
+                  url
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const data = await this.fetchGraphQL(query, { start, end, page });
+      const schedules = data?.Page?.airingSchedules || [];
+      allSchedules = allSchedules.concat(schedules);
+      hasNextPage = Boolean(data?.Page?.pageInfo?.hasNextPage) && schedules.length > 0;
+      page++;
+    }
+
+    return allSchedules;
+  }
+
+  async getSeasonalAnime(
+    year: number,
+    season: string,
+    page: number = 1,
+    perPage: number = 50,
+    format?: string
+  ): Promise<{ total: number; page: number; hasNextPage: boolean; media: any[] }> {
     const query = `
-      query ($start: Int, $end: Int, $page: Int) {
-        Page(page: $page, perPage: 50) {
+      query ($year: Int, $season: MediaSeason, $page: Int, $perPage: Int, $format: MediaFormat) {
+        Page(page: $page, perPage: $perPage) {
           pageInfo {
+            total
+            currentPage
             hasNextPage
           }
-          airingSchedules(airingAt_greater: $start, airingAt_lesser: $end, sort: TIME) {
+          media(season: $season, seasonYear: $year, type: ANIME, format: $format, sort: [POPULARITY_DESC]) {
             id
-            airingAt
-            timeUntilAiring
-            episode
-            media {
+            idMal
+            title {
+              romaji
+              english
+              native
+              userPreferred
+            }
+            coverImage {
+              large
+              extraLarge
+            }
+            bannerImage
+            format
+            status
+            episodes
+            duration
+            countryOfOrigin
+            source
+            genres
+            averageScore
+            meanScore
+            popularity
+            favourites
+            description(asHtml: false)
+            startDate {
+              year
+              month
+              day
+            }
+            studios(isMain: true) {
+              nodes {
+                id
+                name
+                isAnimationStudio
+                siteUrl
+              }
+            }
+            nextAiringEpisode {
+              airingAt
+              timeUntilAiring
+              episode
+            }
+            trailer {
               id
-              idMal
-              title {
-                romaji
-                english
-                native
-              }
-              coverImage {
-                large
-              }
-              bannerImage
-              format
-              genres
-              averageScore
+              site
+              thumbnail
+            }
+            externalLinks {
+              site
+              url
             }
           }
         }
       }
     `;
 
-    const data = await this.fetchGraphQL(query, { start, end, page });
-    return data?.Page?.airingSchedules || [];
+    const variables: Record<string, any> = {
+      year,
+      season: season.toUpperCase(),
+      page,
+      perPage,
+    };
+    if (format) {
+      variables.format = format.toUpperCase();
+    }
+
+    const data = await this.fetchGraphQL(query, variables);
+    return {
+      total: data?.Page?.pageInfo?.total || 0,
+      page: data?.Page?.pageInfo?.currentPage || page,
+      hasNextPage: Boolean(data?.Page?.pageInfo?.hasNextPage),
+      media: data?.Page?.media || [],
+    };
   }
 
   async searchAnime(search: string): Promise<any[]> {

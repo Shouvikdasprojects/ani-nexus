@@ -33,12 +33,27 @@ scheduleRouter.get('/', async (req: Request, res: Response): Promise<void> => {
 
       const media = item.media;
       const primaryTitle = media?.title?.english || media?.title?.romaji || 'Unknown Title';
+      const mainStudio = media?.studios?.nodes?.[0]?.name || null;
+
+      // Format time countdown nicely (e.g. "3d 4h", "5h 22m", "45m")
+      const totalSec = Math.max(0, item.timeUntilAiring);
+      const daysLeft = Math.floor(totalSec / 86400);
+      const hoursLeft = Math.floor((totalSec % 86400) / 3600);
+      const minsLeft = Math.floor((totalSec % 3600) / 60);
+      const countdownFormatted = daysLeft > 0
+        ? `${daysLeft}d ${hoursLeft}h`
+        : hoursLeft > 0
+        ? `${hoursLeft}h ${minsLeft}m`
+        : `${minsLeft}m`;
 
       const entry = {
         airingId: item.id,
         airingAt: new Date(item.airingAt * 1000).toISOString(),
         timeUntilAiringSeconds: item.timeUntilAiring,
+        countdown: countdownFormatted,
         episodeNumber: item.episode,
+        totalEpisodes: media?.episodes || null,
+        studio: mainStudio,
         anime: {
           malId: media?.idMal || null,
           aniId: media?.id || null,
@@ -48,11 +63,17 @@ scheduleRouter.get('/', async (req: Request, res: Response): Promise<void> => {
             romaji: media?.title?.romaji || null,
             native: media?.title?.native || null,
           },
-          coverImage: media?.coverImage?.large || null,
+          coverImage: media?.coverImage?.large || media?.coverImage?.extraLarge || null,
           bannerImage: media?.bannerImage || null,
           format: media?.format || 'TV',
+          status: media?.status || 'RELEASING',
+          countryOfOrigin: media?.countryOfOrigin || 'JP',
           score: media?.averageScore || null,
+          popularity: media?.popularity || null,
           genres: media?.genres || [],
+          description: media?.description || null,
+          studios: media?.studios?.nodes || [],
+          externalLinks: media?.externalLinks || [],
         },
       };
 
