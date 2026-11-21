@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { Franchise } from '../models/Franchise.js';
-import { getSecondaryFranchiseModel } from '../config/database.js';
+import { getSecondaryFranchiseModel, getCharacterModel, getStaffModel } from '../config/database.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
 import { malService } from '../services/malService.js';
 
@@ -175,7 +175,7 @@ seriesRouter.get('/:slug/episodes', async (req: Request, res: Response): Promise
 seriesRouter.get('/:slug/staff', async (req: Request, res: Response): Promise<void> => {
   try {
     const slug = String(req.params.slug);
-    const franchise = await findFranchise({ slug }, { studios: 1, staff: 1, titles: 1 });
+    const franchise = await findFranchise({ slug }, { studios: 1, staff: 1, titles: 1, timeline: 1 });
 
     if (!franchise) {
       res.status(404).json({
@@ -185,14 +185,26 @@ seriesRouter.get('/:slug/staff', async (req: Request, res: Response): Promise<vo
       return;
     }
 
+    // Attempt to query dedicated Staff collection in aninexusapidb2 for exhaustive credits
+    const StaffModel = getStaffModel();
+    const mediaIds = (franchise.timeline || []).map((t: any) => t.ids?.aniId).filter(Boolean);
+    let detailedStaff = await StaffModel.find({
+      $or: [
+        { 'roles.slug': slug },
+        { 'roles.mediaId': { $in: mediaIds } },
+      ],
+    }).lean();
+
+    const staffList = detailedStaff.length > 0 ? detailedStaff : (franchise.staff || []);
+
     res.json({
       success: true,
       data: {
         franchise: franchise.titles?.primary,
         slug,
         studios: franchise.studios || [],
-        totalStaff: franchise.staff?.length || 0,
-        staff: franchise.staff || [],
+        totalStaff: staffList.length,
+        staff: staffList,
       },
     });
   } catch (err: any) {
@@ -210,7 +222,7 @@ seriesRouter.get('/:slug/staff', async (req: Request, res: Response): Promise<vo
 seriesRouter.get('/:slug/characters', async (req: Request, res: Response): Promise<void> => {
   try {
     const slug = String(req.params.slug);
-    const franchise = await findFranchise({ slug }, { mainCharacters: 1, titles: 1 });
+    const franchise = await findFranchise({ slug }, { mainCharacters: 1, titles: 1, timeline: 1 });
 
     if (!franchise) {
       res.status(404).json({
@@ -220,13 +232,25 @@ seriesRouter.get('/:slug/characters', async (req: Request, res: Response): Promi
       return;
     }
 
+    // Attempt to query dedicated Character collection in aninexusapidb2 for exhaustive cast
+    const CharacterModel = getCharacterModel();
+    const mediaIds = (franchise.timeline || []).map((t: any) => t.ids?.aniId).filter(Boolean);
+    let detailedChars = await CharacterModel.find({
+      $or: [
+        { 'animeAppearances.slug': slug },
+        { 'animeAppearances.mediaId': { $in: mediaIds } },
+      ],
+    }).sort({ favourites: -1 }).lean();
+
+    const charList = detailedChars.length > 0 ? detailedChars : (franchise.mainCharacters || []);
+
     res.json({
       success: true,
       data: {
         franchise: franchise.titles?.primary,
         slug,
-        totalCharacters: franchise.mainCharacters?.length || 0,
-        characters: franchise.mainCharacters || [],
+        totalCharacters: charList.length,
+        characters: charList,
       },
     });
   } catch (err: any) {

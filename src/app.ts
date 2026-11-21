@@ -13,6 +13,8 @@ import { searchRouter } from './routes/searchRoutes.js';
 import { seasonRouter } from './routes/seasonRoutes.js';
 import { topRouter } from './routes/topRoutes.js';
 import { awardRouter } from './routes/awardRoutes.js';
+import { characterRouter } from './routes/characterRoutes.js';
+import { staffRouter } from './routes/staffRoutes.js';
 
 export const app: Application = express();
 
@@ -49,6 +51,10 @@ app.get('/', (_req: Request, res: Response) => {
       awardsLatest: '/api/v1/awards/latest',
       awardsYear: '/api/v1/awards/:year',
       awardsCategory: '/api/v1/awards/category/:categorySlug',
+      characters: '/api/v1/characters/:idOrSlug',
+      charactersSearch: '/api/v1/characters/search?q={name}',
+      staff: '/api/v1/staff/:idOrSlug',
+      staffSearch: '/api/v1/staff/search?q={name}',
       search: '/api/v1/search?q={title}',
     },
     features: [
@@ -84,6 +90,8 @@ app.use('/api/v1/filter', filterRouter);
 app.use('/api/v1/seasons', seasonRouter);
 app.use('/api/v1/top', topRouter);
 app.use('/api/v1/awards', awardRouter);
+app.use('/api/v1/characters', characterRouter);
+app.use('/api/v1/staff', staffRouter);
 app.use('/api/v1/search', searchRouter);
 
 // 404 Handler

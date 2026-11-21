@@ -1,9 +1,13 @@
 import mongoose, { Connection, Model } from 'mongoose';
 import { config } from './index.js';
-import { FranchiseSchema, IFranchise } from '../models/Franchise.js';
+import { FranchiseSchema, IFranchise, Franchise } from '../models/Franchise.js';
+import { CharacterSchema, ICharacter, Character } from '../models/Character.js';
+import { StaffSchema, IStaff, Staff } from '../models/Staff.js';
 
 let secondaryConnection: Connection | null = null;
 let SecondaryFranchise: Model<IFranchise> | null = null;
+let SecondaryCharacter: Model<ICharacter> | null = null;
+let SecondaryStaff: Model<IStaff> | null = null;
 
 export async function connectDatabase(): Promise<typeof mongoose> {
   if (!config.mongodb.uri) {
@@ -49,6 +53,8 @@ export async function connectDatabase(): Promise<typeof mongoose> {
       });
 
       SecondaryFranchise = secondaryConnection.model<IFranchise>('Franchise', FranchiseSchema);
+      SecondaryCharacter = secondaryConnection.model<ICharacter>('Character', CharacterSchema);
+      SecondaryStaff = secondaryConnection.model<IStaff>('Staff', StaffSchema);
     } catch (err: any) {
       console.warn('Could not initialize secondary database connection:', err.message);
     }
@@ -63,4 +69,12 @@ export function getSecondaryConnection(): Connection | null {
 
 export function getSecondaryFranchiseModel(): Model<IFranchise> | null {
   return SecondaryFranchise;
+}
+
+export function getCharacterModel(): Model<ICharacter> {
+  return SecondaryCharacter || Character;
+}
+
+export function getStaffModel(): Model<IStaff> {
+  return SecondaryStaff || Staff;
 }
