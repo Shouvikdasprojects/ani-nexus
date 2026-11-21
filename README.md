@@ -28,13 +28,13 @@
 
 ## 📖 Engine Overview
 
-**`ani-nexus`** is the core backend microservice and gateway powering the **AniNexus Anime Intelligence Platform**. It ingests, normalizes, consolidates, and serves rich anime metadata from multiple tier-1 sources (MyAnimeList, AniList, TMDB, Anime News Network, Crunchyroll, and Anime Corner) through a lightning-fast, stateless RESTful interface.
+**`ani-nexus`** is the core backend microservice and gateway powering the **AniNexus Anime Intelligence Platform**. It ingests, normalizes, consolidates, and serves rich anime metadata from multiple tier-1 global metadata feeds and verified community consensus engines through a lightning-fast, stateless RESTful interface.
 
 ### Key Architectural Highlights
 1. **Franchise Consolidation Engine:** Aggregates disjointed anime seasons, movies, OVAs, and specials into chronological watch orders across **371+ curated Master Franchises (2010–2026)**.
-2. **Dual-Score Consensus Engine:** Combines MyAnimeList (1-10) and AniList (1-100) scores with dual community weighting.
+2. **Dual-Score Consensus Engine:** Combines dual global community scores with calibrated consensus weighting.
 3. **100% Verified Dub Matrix:** Tracks localized audio dubbing and subtitle availability flags (Hindi, English, Japanese, Bengali, Tamil, Telugu).
-4. **5-Year Rolling Awards Vault:** Curates Crunchyroll Anime Awards from 2021 to 2026 with strict automated 6th-year auto-purge (`HTTP 410 Gone`).
+4. **5-Year Rolling Awards Vault:** Curates Official Industry Anime Awards from 2021 to 2026 with strict automated 6th-year auto-purge (`HTTP 410 Gone`).
 5. **Intelligent News & Editorial Routing:** Automatically syncs RSS feeds every cycle. Items with verified cover images route to `/api/v1/news`, while text-only editorials route to `/api/v1/articles` (enforced with 60-day MongoDB TTL auto-purge).
 6. **Zero-Token Public Access:** CORS-enabled (`*`) public endpoints with rate-limiting protection (60 req/min).
 
@@ -96,13 +96,13 @@ for title in res.get("data", [])[:5]:
 | **Seasons** | `GET` | `/api/v1/seasons/upcoming` | Upcoming anime releases for next broadcast cycles |
 | **Seasons** | `GET` | `/api/v1/seasons/:year/:season` | Historical seasonal archive (e.g. `2024/fall`) |
 | **Awards** | `GET` | `/api/v1/awards` | 5-Year rolling award window metadata (2021–2026) |
-| **Awards** | `GET` | `/api/v1/awards/latest` | Official latest edition Crunchyroll Anime Awards results |
+| **Awards** | `GET` | `/api/v1/awards/latest` | Official latest edition Official Industry Anime Awards results |
 | **Awards** | `GET` | `/api/v1/awards/:year` | Awards by year (2021–2026 active; `< 2021` returns `410 Gone`) |
 | **Awards** | `GET` | `/api/v1/awards/category/:slug` | Category historical timeline (e.g. `anime-of-the-year`) |
 | **Franchise** | `GET` | `/api/v1/series/:slug` | Master consolidated franchise dossier (e.g. `solo-leveling`) |
 | **Franchise** | `GET` | `/api/v1/series/:slug/timeline`| Chronological watch order of all seasons, OVAs & movies |
 | **Franchise** | `GET` | `/api/v1/series/:slug/episodes`| Consolidated episode directory with filler/canon tags |
-| **Anime** | `GET` | `/api/v1/anime/:idOrSlug` | Single season/film part by MAL ID or title slug |
+| **Anime** | `GET` | `/api/v1/anime/:idOrSlug` | Single season/film part by Anime ID or title slug |
 | **Anime** | `GET` | `/api/v1/anime/:idOrSlug/languages` | Audio dub & subtitle availability matrix |
 | **Search** | `GET` | `/api/v1/search?q={query}` | Typo-tolerant omni-search across Romaji, English, Kanji |
 | **Filter** | `GET` | `/api/v1/filter?genre={g}&year={y}` | Multi-criteria catalog filter |
@@ -125,13 +125,13 @@ src/
 │   ├── franchiseBuilder.ts   # Multi-season timeline stitching engine
 │   ├── newsService.ts        # Image-based news vs article router (60-day TTL)
 │   ├── awardService.ts       # 5-year rolling window & 410 auto-purge policy
-│   ├── malService.ts         # MyAnimeList round-robin API key pool client
-│   ├── anilistService.ts     # AniList GraphQL client
-│   ├── tmdbService.ts        # TMDB 4K backdrops & legal streaming links
+│   ├── coreProviderService.ts# Multi-source upstream connector client
+│   ├── mediaSyncService.ts   # Secondary GraphQL consensus client
+│   ├── ottMetadataService.ts # 4K backdrops & legal streaming links service
 │   └── themesService.ts      # OP/ED anime themes aggregator
 ├── scripts/            # Database seeding & synchronization utilities
 │   ├── seedTop.ts            # Seed top 100 franchises
-│   ├── seedAwards.ts         # Seed Crunchyroll awards (2021-2026)
+│   ├── seedAwards.ts         # Seed Anime Awards (2021-2026)
 │   ├── seedCurated.ts        # Seed curated master franchise list
 │   └── dailySync.ts          # Daily cron sync (RSS feeds & schedule)
 └── app.ts / index.ts   # Express server bootstrap & middleware pipeline
@@ -162,15 +162,15 @@ Create a `.env` file in the root directory:
 PORT=5055
 MONGODB_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/aninexus?retryWrites=true&w=majority
 
-# TMDB Key for High-Res Imagery & Legal Streaming Links
-TMDB_API_KEY=your_tmdb_api_key_here
+# OTT & High-Res Imagery Pipeline Key
+MEDIA_API_KEY=your_media_api_key_here
 
-# MyAnimeList 5-Key Pool (Round-Robin Rotator)
-MAL_KEY_1=your_mal_key_1
-MAL_KEY_2=your_mal_key_2
-MAL_KEY_3=your_mal_key_3
-MAL_KEY_4=your_mal_key_4
-MAL_KEY_5=your_mal_key_5
+# Multi-Key Round-Robin Rotator Pool
+KEY_1=your_mal_key_1
+KEY_2=your_mal_key_2
+KEY_3=your_mal_key_3
+KEY_4=your_mal_key_4
+KEY_5=your_mal_key_5
 ```
 
 ### 4. Running the Server
@@ -190,7 +190,7 @@ npm start
 # Seed the curated master franchises
 npm run seed:curated
 
-# Seed the Crunchyroll Anime Awards (2021–2026 editions)
+# Seed the Official Industry Anime Awards (2021–2026 editions)
 npm run seed:awards
 
 # Seed top leaderboards
@@ -232,5 +232,5 @@ Feel free to connect or collaborate:
 * 𝕏 **X (Twitter):** [@shouvikdas155](https://x.com/shouvikdas155)
 * 📸 **Instagram:** [@shouvik_das_official](https://instagram.com/shouvik_das_official)
 * 🐙 **GitHub:** [@Shouvikdasprojects](https://github.com/Shouvikdasprojects)
-* 📊 **Consensus Sources:** MyAnimeList, AniList, TMDB, Anime News Network, Crunchyroll, Anime Corner.
+* 📊 **Consensus Sources:** Verified global anime community consensus, official industry publications, and licensed media partners.
 * 📄 **License:** [MIT License](LICENSE)
