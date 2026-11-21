@@ -31,7 +31,7 @@
 **`ani-nexus`** is the core backend microservice and gateway powering the **AniNexus Anime Intelligence Platform**. It ingests, normalizes, consolidates, and serves rich anime metadata from multiple tier-1 global metadata feeds and verified community consensus engines through a lightning-fast, stateless RESTful interface.
 
 ### Key Architectural Highlights
-1. **Franchise Consolidation Engine:** Aggregates disjointed anime seasons, movies, OVAs, and specials into chronological watch orders across **634+ curated Master Franchises (2010–2026)**.
+1. **Franchise Consolidation Engine:** Aggregates disjointed anime seasons, movies, OVAs, and specials into chronological watch orders across **634+ curated Master Franchises (1960s–Present+)**.
 2. **1024MB Dual-Vault Architecture:** Distributed cross-cluster data store featuring Primary Vault (`cluster0`) and Vault 2 (`aninexusapidb2`).
 3. **Universal Characters & Staff Encyclopedia:** 3,553+ comprehensive Character dossiers (physical traits, markdown biographies, multi-lingual seiyuu credits) and 2,172+ Staff/Creators profiles.
 4. **Dual-Score Consensus Engine:** Combines dual global community scores with calibrated consensus weighting.
