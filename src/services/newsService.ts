@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
-import { News, INews } from '../models/News.js';
+import { INews } from '../models/News.js';
+import { getNewsModel } from '../config/database.js';
 
 interface CustomFeedItem {
   title?: string;
@@ -111,15 +112,16 @@ class NewsService {
           const imageUrl = this.extractImageUrl(item);
           const category: 'news' | 'article' = imageUrl ? 'news' : 'article';
 
+          const NewsModel = getNewsModel();
           // Check if already exists by sourceUrl or exact title
-          const existing = await News.findOne({
+          const existing = await NewsModel.findOne({
             $or: [{ sourceUrl: item.link }, { title: item.title }],
           });
 
           if (existing) {
             // Retroactively upgrade article to news if image is now discovered
             if (imageUrl && (!existing.imageUrl || existing.category === 'article')) {
-              await News.updateOne(
+              await NewsModel.updateOne(
                 { _id: existing._id },
                 { $set: { imageUrl, category: 'news', tags: ['Anime', 'news'] } }
               );
@@ -132,7 +134,7 @@ class NewsService {
           const publishedDate = item.pubDate ? new Date(item.pubDate) : new Date();
           const hash = Buffer.from(item.link).toString('base64url').slice(-6);
 
-          await News.create({
+          await NewsModel.create({
             title: item.title,
             slug: `${baseSlug}-${hash}`,
             snippet: item.contentSnippet?.slice(0, 300) || '',
@@ -161,7 +163,7 @@ class NewsService {
    */
   async getNews(limit = 20, page = 1) {
     const skip = (page - 1) * limit;
-    return News.find({ category: 'news' })
+    return getNewsModel().find({ category: 'news' })
       .sort({ publishedAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -173,7 +175,7 @@ class NewsService {
    */
   async getArticles(limit = 20, page = 1) {
     const skip = (page - 1) * limit;
-    return News.find({ category: 'article' })
+    return getNewsModel().find({ category: 'article' })
       .sort({ publishedAt: -1 })
       .skip(skip)
       .limit(limit)

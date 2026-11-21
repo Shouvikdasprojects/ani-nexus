@@ -1,5 +1,5 @@
 import { Franchise, IFranchise, ITimelinePart, ICharacter, IEpisode, IStudio, IStaffMember, IStaffSocial } from '../models/Franchise.js';
-import { getSecondaryFranchiseModel } from '../config/database.js';
+import { getSecondaryFranchiseModel, getTargetFranchiseWriteModel } from '../config/database.js';
 import { anilistService } from './anilistService.js';
 import { malService } from './malService.js';
 import { tmdbService } from './tmdbService.js';
@@ -594,8 +594,9 @@ export class FranchiseBuilder {
       malData.alternative_titles.synonyms.forEach((s: string) => synonymsSet.add(s));
     }
 
-    // 13. Upsert into MongoDB
-    const franchiseDoc = await Franchise.findOneAndUpdate(
+    // 13. Upsert into MongoDB (Auto-spills over to Vault 2 if Primary Vault is full)
+    const TargetModel = await getTargetFranchiseWriteModel();
+    const franchiseDoc = await TargetModel.findOneAndUpdate(
       { slug },
       {
         slug,

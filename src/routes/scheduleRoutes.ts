@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { anilistService } from '../services/anilistService.js';
+import { getScheduleSnapshotModel } from '../config/database.js';
 
 export const scheduleRouter = Router();
 
@@ -15,6 +16,8 @@ const SCHEDULE_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 scheduleRouter.get('/', async (req: Request, res: Response): Promise<void> => {
   try {
     const forceLive = req.query.live === 'true';
+
+    // 1. Check in-memory RAM cache first (0ms latency)
     if (!forceLive && cachedScheduleData && (Date.now() - lastScheduleFetchTime < SCHEDULE_CACHE_TTL)) {
       res.json({
         success: true,
@@ -22,6 +25,25 @@ scheduleRouter.get('/', async (req: Request, res: Response): Promise<void> => {
         data: cachedScheduleData,
       });
       return;
+    }
+
+    // 2. Cold-boot check: check Vault 3 (Real-Time Hub) if RAM cache is cold
+    if (!forceLive && !cachedScheduleData) {
+      try {
+        const snapshot = await getScheduleSnapshotModel().findOne({ snapshotId: 'weekly_calendar' }).lean();
+        if (snapshot?.data && (Date.now() - new Date(snapshot.cachedAt).getTime() < 60 * 60 * 1000)) {
+          cachedScheduleData = snapshot.data;
+          lastScheduleFetchTime = new Date(snapshot.cachedAt).getTime();
+          res.json({
+            success: true,
+            source: 'vault3-snapshot',
+            data: cachedScheduleData,
+          });
+          return;
+        }
+      } catch (err: any) {
+        console.warn('[Schedule Snapshot Query Warning]:', err.message);
+      }
     }
 
     const now = Math.floor(Date.now() / 1000);
@@ -114,6 +136,22 @@ scheduleRouter.get('/', async (req: Request, res: Response): Promise<void> => {
     if (schedules.length > 0) {
       cachedScheduleData = schedulePayload;
       lastScheduleFetchTime = Date.now();
+
+      // Persist snapshot to Vault 3 (Real-Time Hub) asynchronously
+      try {
+        getScheduleSnapshotModel().findOneAndUpdate(
+          { snapshotId: 'weekly_calendar' },
+          {
+            snapshotId: 'weekly_calendar',
+            data: schedulePayload,
+            totalAiringThisWeek: schedules.length,
+            cachedAt: new Date(),
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        ).catch((err: any) => console.warn('[Vault 3 Schedule Snapshot Warning]:', err.message));
+      } catch (err: any) {
+        console.warn('[Vault 3 Schedule Snapshot Warning]:', err.message);
+      }
     }
 
     res.json({

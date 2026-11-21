@@ -32,7 +32,7 @@
 
 ### Key Architectural Highlights
 1. **Franchise Consolidation Engine:** Aggregates disjointed anime seasons, movies, OVAs, and specials into chronological watch orders across **634+ curated Master Franchises (1960s–Present+)**.
-2. **1024MB Dual-Vault Architecture:** Distributed cross-cluster data store featuring Primary Vault (`cluster0`) and Vault 2 (`aninexusapidb2`).
+2. **1.5GB Triple-Vault Architecture:** Distributed 3-cluster data store featuring Vault 1 Primary Core Archive (`aninexusapidb2` - 634+ Franchises, Characters, Staff), Vault 2 Overflow Storage (`cluster0` - 480MB auto-spillover capacity), and Vault 3 Dedicated Real-Time Hub (isolated 512MB cluster for News, Articles with 60-day TTL, and Airing Calendar persistence).
 3. **Universal Characters & Staff Encyclopedia:** 3,553+ comprehensive Character dossiers (physical traits, markdown biographies, multi-lingual seiyuu credits) and 2,172+ Staff/Creators profiles.
 4. **Dual-Score Consensus Engine:** Combines dual global community scores with calibrated consensus weighting.
 5. **100% Verified Per-Part Language Matrix:** Tracks granular audio dubbing and subtitle availability flags (Hindi, English, Japanese, Bengali, Tamil, Telugu) per season and movie (`/api/v1/anime/:idOrSlug/languages`).

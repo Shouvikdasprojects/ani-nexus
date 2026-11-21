@@ -18,8 +18,11 @@ export const config = {
   port: Number(process.env.PORT) || 5055,
   env: process.env.NODE_ENV || 'development',
   mongodb: {
-    uri: process.env.MONGODB_URI || '',
-    secondaryUri: process.env.MONGODB_SECONDARY_URI || '',
+    primaryUri: process.env.MONGODB_PRIMARY_URI || process.env.MONGODB_URI || '',
+    overflowUri: process.env.MONGODB_OVERFLOW_URI || process.env.MONGODB_SECONDARY_URI || '',
+    realtimeUri: process.env.MONGODB_REALTIME_URI || '',
+    uri: process.env.MONGODB_PRIMARY_URI || process.env.MONGODB_URI || '',
+    secondaryUri: process.env.MONGODB_OVERFLOW_URI || process.env.MONGODB_SECONDARY_URI || '',
   },
   tmdb: {
     apiKey: process.env.TMDB_API_KEY || '',

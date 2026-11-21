@@ -15,7 +15,7 @@ export interface INews extends Document {
   updatedAt: Date;
 }
 
-const NewsSchema = new Schema<INews>(
+export const NewsSchema = new Schema<INews>(
   {
     title: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, index: true },
