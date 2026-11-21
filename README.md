@@ -213,8 +213,24 @@ Pass `https://aninexus-api-website.pages.dev/llms.txt` directly to ChatGPT, Clau
 
 ---
 
-## 👨‍💻 Engineering & Maintainer
+## 👨‍💻 Engineering, Maintainer & Connect
 
-* **Author:** [Shouvik Das](https://github.com/Shouvikdasprojects)
-* **Consensus Sources:** MyAnimeList, AniList, TMDB, Anime News Network, Crunchyroll, Anime Corner.
-* **License:** [MIT License](LICENSE)
+**Engineered & Maintained by [Shouvik Das](https://github.com/Shouvikdasprojects)**
+
+Feel free to connect or collaborate:
+
+<p align="left">
+  <a href="https://heylink.me/ShouvikDas/"><img src="https://img.shields.io/badge/All%20Socials-HeyLink-00C4CC?style=for-the-badge&logo=linktree&logoColor=white" alt="HeyLink" /></a>
+  <a href="https://x.com/shouvikdas155"><img src="https://img.shields.io/badge/X%20(Twitter)-@shouvikdas155-000000?style=for-the-badge&logo=x&logoColor=white" alt="X" /></a>
+  <a href="https://instagram.com/shouvik_das_official"><img src="https://img.shields.io/badge/Instagram-@shouvik__das__official-E4405F?style=for-the-badge&logo=instagram&logoColor=white" alt="Instagram" /></a>
+  <a href="mailto:shouvikdaswork@gmail.com"><img src="https://img.shields.io/badge/Email-shouvikdaswork@gmail.com-EA4335?style=for-the-badge&logo=gmail&logoColor=white" alt="Email" /></a>
+  <a href="https://github.com/Shouvikdasprojects"><img src="https://img.shields.io/badge/GitHub-Shouvikdasprojects-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub" /></a>
+</p>
+
+* 📬 **Direct Email:** [shouvikdaswork@gmail.com](mailto:shouvikdaswork@gmail.com)
+* 🌐 **All Socials Hub:** [heylink.me/ShouvikDas](https://heylink.me/ShouvikDas/)
+* 𝕏 **X (Twitter):** [@shouvikdas155](https://x.com/shouvikdas155)
+* 📸 **Instagram:** [@shouvik_das_official](https://instagram.com/shouvik_das_official)
+* 🐙 **GitHub:** [@Shouvikdasprojects](https://github.com/Shouvikdasprojects)
+* 📊 **Consensus Sources:** MyAnimeList, AniList, TMDB, Anime News Network, Crunchyroll, Anime Corner.
+* 📄 **License:** [MIT License](LICENSE)
