@@ -446,4 +446,5 @@ FranchiseSchema.index({
   'studios.name': 'text',
 });
 
+export { FranchiseSchema };
 export const Franchise = mongoose.model<IFranchise>('Franchise', FranchiseSchema);

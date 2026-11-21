@@ -1,4 +1,5 @@
 import { Franchise, IFranchise, ITimelinePart, ICharacter, IEpisode, IStudio, IStaffMember, IStaffSocial } from '../models/Franchise.js';
+import { getSecondaryFranchiseModel } from '../config/database.js';
 import { anilistService } from './anilistService.js';
 import { malService } from './malService.js';
 import { tmdbService } from './tmdbService.js';
@@ -628,6 +629,49 @@ export class FranchiseBuilder {
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
+    // Sync seamlessly across 1024MB Dual-Vault Secondary cluster if active
+    const SecondaryModel = getSecondaryFranchiseModel();
+    if (SecondaryModel) {
+      try {
+        await SecondaryModel.findOneAndUpdate(
+          { slug },
+          {
+            slug,
+            titles: {
+              primary: primaryTitle,
+              english: englishTitle,
+              romaji: romajiTitle,
+              native: nativeTitle,
+              synonyms: Array.from(synonymsSet),
+            },
+            images: {
+              poster,
+              backdrop,
+              logo,
+            },
+            overview: aniMedia.description || malData?.synopsis || '',
+            classification: {
+              genres: genresList,
+              themes: themesList,
+              demographic: demographicObj,
+            },
+            contentRating,
+            totalParts: timeline.length,
+            totalEpisodes: timeline.reduce((acc, t) => acc + (t.episodes?.length || 0), 0) || totalEpsCount,
+            studios,
+            staff: staff.slice(0, 30),
+            mainCharacters: characters.slice(0, 30),
+            timeline,
+            lastUpdated: new Date(),
+            revalidateAfter: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      } catch (secErr: any) {
+        console.warn('[Secondary Vault Sync Warning]:', secErr.message);
+      }
+    }
 
     return franchiseDoc;
   }

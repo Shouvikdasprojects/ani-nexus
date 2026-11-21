@@ -1,7 +1,9 @@
-import mongoose, { Connection } from 'mongoose';
+import mongoose, { Connection, Model } from 'mongoose';
 import { config } from './index.js';
+import { FranchiseSchema, IFranchise } from '../models/Franchise.js';
 
 let secondaryConnection: Connection | null = null;
+let SecondaryFranchise: Model<IFranchise> | null = null;
 
 export async function connectDatabase(): Promise<typeof mongoose> {
   if (!config.mongodb.uri) {
@@ -45,6 +47,8 @@ export async function connectDatabase(): Promise<typeof mongoose> {
       secondaryConnection.on('error', (err) => {
         console.warn('⚠️ Secondary MongoDB Connection Warning:', err.message);
       });
+
+      SecondaryFranchise = secondaryConnection.model<IFranchise>('Franchise', FranchiseSchema);
     } catch (err: any) {
       console.warn('Could not initialize secondary database connection:', err.message);
     }
@@ -55,4 +59,8 @@ export async function connectDatabase(): Promise<typeof mongoose> {
 
 export function getSecondaryConnection(): Connection | null {
   return secondaryConnection;
+}
+
+export function getSecondaryFranchiseModel(): Model<IFranchise> | null {
+  return SecondaryFranchise;
 }

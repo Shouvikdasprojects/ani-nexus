@@ -1,9 +1,28 @@
 import { Router, Request, Response } from 'express';
 import { Franchise } from '../models/Franchise.js';
+import { getSecondaryFranchiseModel } from '../config/database.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
 import { malService } from '../services/malService.js';
 
 export const seriesRouter = Router();
+
+/**
+ * Helper to query seamlessly across 1024MB Dual-Vault (Primary & Secondary)
+ */
+async function findFranchise(filter: any, projection?: any) {
+  let doc = await Franchise.findOne(filter, projection).lean();
+  if (!doc) {
+    const SecondaryModel = getSecondaryFranchiseModel();
+    if (SecondaryModel) {
+      try {
+        doc = await SecondaryModel.findOne(filter, projection).lean();
+      } catch (err: any) {
+        console.warn('[Secondary Vault Query Warning]:', err.message);
+      }
+    }
+  }
+  return doc;
+}
 
 /**
  * GET /api/v1/series/:slug
@@ -13,7 +32,7 @@ export const seriesRouter = Router();
 seriesRouter.get('/:slug', async (req: Request, res: Response): Promise<void> => {
   try {
     const slug = String(req.params.slug);
-    let franchise = await Franchise.findOne({ slug }).lean();
+    let franchise = await findFranchise({ slug });
 
     // On-Demand Ingestion: if not in database, attempt search & build
     if (!franchise) {
@@ -69,7 +88,7 @@ seriesRouter.get('/:slug', async (req: Request, res: Response): Promise<void> =>
 seriesRouter.get('/:slug/timeline', async (req: Request, res: Response): Promise<void> => {
   try {
     const slug = String(req.params.slug);
-    const franchise = await Franchise.findOne({ slug }, { timeline: 1, titles: 1 }).lean();
+    const franchise = await findFranchise({ slug }, { timeline: 1, titles: 1 });
 
     if (!franchise) {
       res.status(404).json({
@@ -104,7 +123,7 @@ seriesRouter.get('/:slug/episodes', async (req: Request, res: Response): Promise
     const slug = String(req.params.slug);
     const { season } = req.query;
 
-    const franchise = await Franchise.findOne({ slug }, { 'timeline.episodes': 1, 'timeline.partName': 1, titles: 1 }).lean();
+    const franchise = await findFranchise({ slug }, { 'timeline.episodes': 1, 'timeline.partName': 1, titles: 1 });
 
     if (!franchise) {
       res.status(404).json({
@@ -156,7 +175,7 @@ seriesRouter.get('/:slug/episodes', async (req: Request, res: Response): Promise
 seriesRouter.get('/:slug/staff', async (req: Request, res: Response): Promise<void> => {
   try {
     const slug = String(req.params.slug);
-    const franchise = await Franchise.findOne({ slug }, { studios: 1, staff: 1, titles: 1 }).lean();
+    const franchise = await findFranchise({ slug }, { studios: 1, staff: 1, titles: 1 });
 
     if (!franchise) {
       res.status(404).json({
@@ -191,7 +210,7 @@ seriesRouter.get('/:slug/staff', async (req: Request, res: Response): Promise<vo
 seriesRouter.get('/:slug/characters', async (req: Request, res: Response): Promise<void> => {
   try {
     const slug = String(req.params.slug);
-    const franchise = await Franchise.findOne({ slug }, { mainCharacters: 1, titles: 1 }).lean();
+    const franchise = await findFranchise({ slug }, { mainCharacters: 1, titles: 1 });
 
     if (!franchise) {
       res.status(404).json({
