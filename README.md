@@ -31,12 +31,15 @@
 **`ani-nexus`** is the core backend microservice and gateway powering the **AniNexus Anime Intelligence Platform**. It ingests, normalizes, consolidates, and serves rich anime metadata from multiple tier-1 global metadata feeds and verified community consensus engines through a lightning-fast, stateless RESTful interface.
 
 ### Key Architectural Highlights
-1. **Franchise Consolidation Engine:** Aggregates disjointed anime seasons, movies, OVAs, and specials into chronological watch orders across **371+ curated Master Franchises (2010–2026)**.
-2. **Dual-Score Consensus Engine:** Combines dual global community scores with calibrated consensus weighting.
-3. **100% Verified Dub Matrix:** Tracks localized audio dubbing and subtitle availability flags (Hindi, English, Japanese, Bengali, Tamil, Telugu).
-4. **5-Year Rolling Awards Vault:** Curates Official Industry Anime Awards from 2021 to 2026 with strict automated 6th-year auto-purge (`HTTP 410 Gone`).
-5. **Intelligent News & Editorial Routing:** Automatically syncs RSS feeds every cycle. Items with verified cover images route to `/api/v1/news`, while text-only editorials route to `/api/v1/articles` (enforced with 60-day MongoDB TTL auto-purge).
-6. **Zero-Token Public Access:** CORS-enabled (`*`) public endpoints with rate-limiting protection (60 req/min).
+1. **Franchise Consolidation Engine:** Aggregates disjointed anime seasons, movies, OVAs, and specials into chronological watch orders across **634+ curated Master Franchises (2010–2026)**.
+2. **1024MB Dual-Vault Architecture:** Distributed cross-cluster data store featuring Primary Vault (`cluster0`) and Vault 2 (`aninexusapidb2`).
+3. **Universal Characters & Staff Encyclopedia:** 3,553+ comprehensive Character dossiers (physical traits, markdown biographies, multi-lingual seiyuu credits) and 2,172+ Staff/Creators profiles.
+4. **Dual-Score Consensus Engine:** Combines dual global community scores with calibrated consensus weighting.
+5. **100% Verified Per-Part Language Matrix:** Tracks granular audio dubbing and subtitle availability flags (Hindi, English, Japanese, Bengali, Tamil, Telugu) per season and movie (`/api/v1/anime/:idOrSlug/languages`).
+6. **7-Day Live Broadcast Airing Calendar:** 138+ weekly live airing episodes with UTC countdowns, episode progress counters, and main animation studio credits (`/api/v1/schedule`).
+7. **5-Year Rolling Awards Vault:** Curates Official Industry Anime Awards from 2021 to 2026 with strict automated 6th-year auto-purge (`HTTP 410 Gone`).
+8. **Intelligent News & Editorial Routing:** Automatically syncs RSS feeds every cycle. Items with verified cover images route to `/api/v1/news`, while text-only editorials route to `/api/v1/articles` (enforced with 60-day MongoDB TTL auto-purge).
+9. **Zero-Token Public Access:** CORS-enabled (`*`) public endpoints with rate-limiting protection (60 req/min).
 
 ---
 
@@ -102,12 +105,19 @@ for title in res.get("data", [])[:5]:
 | **Franchise** | `GET` | `/api/v1/series/:slug` | Master consolidated franchise dossier (e.g. `solo-leveling`) |
 | **Franchise** | `GET` | `/api/v1/series/:slug/timeline`| Chronological watch order of all seasons, OVAs & movies |
 | **Franchise** | `GET` | `/api/v1/series/:slug/episodes`| Consolidated episode directory with filler/canon tags |
+| **Franchise** | `GET` | `/api/v1/series/:slug/characters`| Cast & Voice Actors Dossier |
+| **Franchise** | `GET` | `/api/v1/series/:slug/staff`| Animation Studios & Key Production Staff |
+| **Characters** | `GET` | `/api/v1/characters/:idOrSlug`| Comprehensive Character Encyclopedia (3,553+ profiles) |
+| **Characters** | `GET` | `/api/v1/characters/search?q={query}`| Search characters by name, romaji, or alias |
+| **Staff** | `GET` | `/api/v1/staff/:idOrSlug`| Production Staff & Seiyuu Encyclopedia (2,172+ profiles) |
+| **Staff** | `GET` | `/api/v1/staff/search?q={query}`| Search voice actors, directors, and creators |
 | **Anime** | `GET` | `/api/v1/anime/:idOrSlug` | Single season/film part by Anime ID or title slug |
 | **Anime** | `GET` | `/api/v1/anime/:idOrSlug/languages` | Audio dub & subtitle availability matrix |
+| **Seasons** | `GET` | `/api/v1/seasons/:year/:season` | Archive for specific season (AniChart parity) |
 | **Search** | `GET` | `/api/v1/search?q={query}` | Typo-tolerant omni-search across Romaji, English, Kanji |
 | **Filter** | `GET` | `/api/v1/filter?genre={g}&year={y}` | Multi-criteria catalog filter |
 | **Genres** | `GET` | `/api/v1/genres` | 34 curated official anime genres with display metadata |
-| **Schedule** | `GET` | `/api/v1/schedule` | Weekly 7-day broadcast calendar with localized dub flags |
+| **Schedule** | `GET` | `/api/v1/schedule` | Weekly 7-day broadcast calendar (138+ weekly live shows) |
 | **News** | `GET` | `/api/v1/news` | Industry news guaranteed with cover photos (60-day TTL) |
 | **Articles** | `GET` | `/api/v1/articles` | Editorial character breakdowns & reviews (60-day TTL) |
 | **Trailers** | `GET` | `/api/v1/trailers` | Official YouTube promotional video embeds & stills |
