@@ -19,6 +19,7 @@ export const config = {
   env: process.env.NODE_ENV || 'development',
   mongodb: {
     uri: process.env.MONGODB_URI || '',
+    secondaryUri: process.env.MONGODB_SECONDARY_URI || '',
   },
   tmdb: {
     apiKey: process.env.TMDB_API_KEY || '',
