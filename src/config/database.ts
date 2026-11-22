@@ -169,8 +169,20 @@ export function getScheduleSnapshotModel(): Model<IScheduleSnapshot> {
 export async function getTargetFranchiseWriteModel(): Promise<Model<IFranchise>> {
   const isFull = await isPrimaryVaultFull();
   if (isFull && OverflowFranchise) {
-    console.log('⚠️ [Triple-Vault Routing] Primary Vault full (>=480MB). Directing save to Vault 2 (Overflow)!');
+    console.log('⚠️ [Multi-Vault Routing] Primary Vault full (>=480MB). Directing save to Vault 2 (Overflow)!');
     return OverflowFranchise;
   }
   return Franchise;
+}
+
+/**
+ * Returns real-time connectivity status across all database vaults.
+ */
+export function getVaultHealthStatus() {
+  const readyStates = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  return {
+    vault1Primary: readyStates[mongoose.connection.readyState] || 'unknown',
+    vault2Overflow: overflowConnection ? (readyStates[overflowConnection.readyState] || 'unknown') : 'standby',
+    vault3Realtime: realtimeConnection ? (readyStates[realtimeConnection.readyState] || 'unknown') : 'standby',
+  };
 }

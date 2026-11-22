@@ -16,11 +16,19 @@ import { topRouter } from './routes/topRoutes.js';
 import { awardRouter } from './routes/awardRoutes.js';
 import { characterRouter } from './routes/characterRoutes.js';
 import { staffRouter } from './routes/staffRoutes.js';
+import { requestIdMiddleware } from './utils/requestId.js';
+import { smartCacheMiddleware } from './utils/cache.js';
+import { getVaultHealthStatus } from './config/database.js';
+import { openApiSpec } from './config/openapi.js';
 
 export const app: Application = express();
 
 // Enable reverse proxy support (Render.com / Cloudflare real client IP)
 app.set('trust proxy', 1);
+
+// Standard Request Tracing & HTTP Caching
+app.use(requestIdMiddleware);
+app.use(smartCacheMiddleware);
 
 // Security & Optimization Middlewares
 app.use(helmet());
@@ -41,7 +49,12 @@ export const apiLimiter = rateLimit({
     message: 'Rate limit exceeded: Maximum 90 requests per minute allowed. Please try again after 60 seconds.',
     retryAfterSeconds: 60,
   },
-  skip: (req: Request) => req.path === '/health' || req.path === '/',
+  skip: (req: Request) =>
+    req.path === '/health' ||
+    req.path === '/health/detailed' ||
+    req.path === '/' ||
+    req.path === '/openapi.json' ||
+    req.path === '/api/v1/openapi.json',
 });
 
 // Apply rate limiter to all API routes
@@ -96,12 +109,42 @@ app.get('/', (_req: Request, res: Response) => {
   });
 });
 
-app.get('/health', (_req: Request, res: Response) => {
+app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    requestId: req.id,
   });
+});
+
+app.get('/health/detailed', (req: Request, res: Response) => {
+  const memory = process.memoryUsage();
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    requestId: req.id,
+    vaults: getVaultHealthStatus(),
+    system: {
+      memoryMB: +(memory.rss / (1024 * 1024)).toFixed(2),
+      heapUsedMB: +(memory.heapUsed / (1024 * 1024)).toFixed(2),
+      nodeVersion: process.version,
+    },
+    rateLimiting: {
+      windowMs: 60000,
+      maxPerMinute: 90,
+      standard: 'IETF draft-7 RateLimit + legacy X-RateLimit',
+    },
+  });
+});
+
+app.get('/openapi.json', (_req: Request, res: Response) => {
+  res.json(openApiSpec);
+});
+
+app.get('/api/v1/openapi.json', (_req: Request, res: Response) => {
+  res.json(openApiSpec);
 });
 
 // Mount API Endpoints
@@ -124,14 +167,16 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({
     success: false,
     error: `Endpoint not found: ${req.method} ${req.originalUrl}`,
+    requestId: req.id,
   });
 });
 
 // Global Error Handler
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('[AniNexus Global Error]:', err);
+app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+  console.error(`[AniNexus Global Error][${req.id}]:`, err);
   res.status(500).json({
     success: false,
     error: err.message || 'Internal Server Error',
+    requestId: req.id,
   });
 });
