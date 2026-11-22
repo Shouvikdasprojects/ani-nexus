@@ -1,9 +1,9 @@
-name: AniNexus Daily Automated Sync
+name: AniNexus Automated Database Sync
 
 on:
   schedule:
-    # Runs daily at 03:00 UTC (08:30 AM IST)
-    - cron: '0 3 * * *'
+    # Runs twice daily at 00:00 UTC (05:30 AM IST) and 12:00 UTC (05:30 PM IST)
+    - cron: '0 0,12 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
@@ -26,8 +26,17 @@ jobs:
       - name: Run Daily Sync Script
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_PRIMARY_URI: ${{ secrets.MONGODB_PRIMARY_URI || secrets.MONGODB_URI }}
+          MONGODB_OVERFLOW_URI: ${{ secrets.MONGODB_OVERFLOW_URI }}
+          MONGODB_REALTIME_URI: ${{ secrets.MONGODB_REALTIME_URI || secrets.MONGODB_URI }}
+          MEDIA_API_KEY: ${{ secrets.MEDIA_API_KEY || secrets.TMDB_API_KEY }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
+          KEY_1: ${{ secrets.KEY_1 || secrets.MAL_KEY_1 }}
+          KEY_2: ${{ secrets.KEY_2 || secrets.MAL_KEY_2 }}
+          KEY_3: ${{ secrets.KEY_3 || secrets.MAL_KEY_3 }}
+          KEY_4: ${{ secrets.KEY_4 || secrets.MAL_KEY_4 }}
+          KEY_5: ${{ secrets.KEY_5 || secrets.MAL_KEY_5 }}
           MAL_KEY_1: ${{ secrets.MAL_KEY_1 }}
           MAL_KEY_2: ${{ secrets.MAL_KEY_2 }}
           MAL_KEY_3: ${{ secrets.MAL_KEY_3 }}
