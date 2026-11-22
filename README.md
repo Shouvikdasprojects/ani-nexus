@@ -5,7 +5,7 @@
 
 [![Engine: Node.js / Express](https://img.shields.io/badge/Engine-Node.js%20%2F%20Express-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://expressjs.com/)
 [![Language: TypeScript](https://img.shields.io/badge/Language-TypeScript%205-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Database: MongoDB Atlas](https://img.shields.io/badge/Database-MongoDB%20Atlas-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Infrastructure: Cloud Cluster](https://img.shields.io/badge/Infrastructure-Distributed%20Cloud-10B981?style=for-the-badge&logo=icloud&logoColor=white)](https://ani-nexus.onrender.com/health)
 [![Hosting: Render](https://img.shields.io/badge/Deploy-Render.com-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://ani-nexus.onrender.com/health)
 [![Architecture: REST API v1](https://img.shields.io/badge/Protocol-REST%20v1%20(JSON)-8B5CF6?style=for-the-badge)](https://aninexus-api-website.pages.dev/docs)
 [![Auth: Zero-Token Free](https://img.shields.io/badge/Auth-100%25%20Free%20%2F%20Open-3B82F6?style=for-the-badge)](https://aninexus-api-website.pages.dev/docs)
@@ -32,13 +32,13 @@
 
 ### Key Architectural Highlights
 1. **Franchise Consolidation Engine:** Aggregates disjointed anime seasons, movies, OVAs, and specials into chronological watch orders across **634+ curated Master Franchises (1960s–Present+)**.
-2. **1.5GB Triple-Vault Architecture:** Distributed 3-cluster data store featuring Vault 1 Primary Core Archive (`aninexusapidb2` - 634+ Franchises, Characters, Staff), Vault 2 Overflow Storage (`cluster0` - 480MB auto-spillover capacity), and Vault 3 Dedicated Real-Time Hub (isolated 512MB cluster for News, Articles with 60-day TTL, and Airing Calendar persistence).
+2. **Distributed Cloud Architecture:** Resilient multi-cluster data store featuring Primary Core Archive (634+ Franchises, Characters, Staff), automated overflow storage, and a dedicated Real-Time Hub (isolated cluster for News, Articles with 60-day TTL, and Airing Calendar persistence).
 3. **Universal Characters & Staff Encyclopedia:** 3,553+ comprehensive Character dossiers (physical traits, markdown biographies, multi-lingual seiyuu credits) and 2,172+ Staff/Creators profiles.
 4. **Dual-Score Consensus Engine:** Combines dual global community scores with calibrated consensus weighting.
 5. **100% Verified Per-Part Language Matrix:** Tracks granular audio dubbing and subtitle availability flags (Hindi, English, Japanese, Bengali, Tamil, Telugu) per season and movie (`/api/v1/anime/:idOrSlug/languages`).
 6. **7-Day Live Broadcast Airing Calendar:** 138+ weekly live airing episodes with UTC countdowns, episode progress counters, and main animation studio credits (`/api/v1/schedule`).
 7. **5-Year Rolling Awards Vault:** Curates Official Industry Anime Awards from 2021 to 2026 with strict automated 6th-year auto-purge (`HTTP 410 Gone`).
-8. **Intelligent News & Editorial Routing:** Automatically syncs RSS feeds every cycle. Items with verified cover images route to `/api/v1/news`, while text-only editorials route to `/api/v1/articles` (enforced with 60-day MongoDB TTL auto-purge).
+8. **Intelligent News & Editorial Routing:** Automatically syncs RSS feeds every cycle. Items with verified cover images route to `/api/v1/news`, while text-only editorials route to `/api/v1/articles` (enforced with 60-day automated TTL auto-purge).
 9. **Zero-Token Public Access:** CORS-enabled (`*`) public endpoints with rate-limiting protection (60 req/min).
 
 ---
@@ -153,7 +153,7 @@ src/
 
 ### 1. Prerequisites
 - **Node.js**: v18.0.0 or higher
-- **MongoDB Atlas** or local MongoDB instance (v6.0+)
+- **Cloud Database / Document Store** (v6.0+)
 - **Git**
 
 ### 2. Installation
@@ -176,11 +176,11 @@ MONGODB_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/aninexus?retryWr
 MEDIA_API_KEY=your_media_api_key_here
 
 # Multi-Key Round-Robin Rotator Pool
-KEY_1=your_mal_key_1
-KEY_2=your_mal_key_2
-KEY_3=your_mal_key_3
-KEY_4=your_mal_key_4
-KEY_5=your_mal_key_5
+KEY_1=your_upstream_key_1
+KEY_2=your_upstream_key_2
+KEY_3=your_upstream_key_3
+KEY_4=your_upstream_key_4
+KEY_5=your_upstream_key_5
 ```
 
 ### 4. Running the Server

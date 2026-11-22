@@ -63,7 +63,7 @@ app.get('/', (_req: Request, res: Response) => {
       'Curated Top Collections (Trending, Popular, Awards/Highest Rated, Movies)',
       'Anime Awards Hub (Current year + past 5 years with auto-purge 6th-year rolling retention)',
       '3-Tier Titles (English primary, Romaji, Kanji, Synonyms)',
-      'Dual Community Scores (MAL 10-scale + AniList 100% scale side-by-side)',
+      'Dual Community Consensus Scores (Verified global 10-point scale + 100% rating scale side-by-side)',
       'Verified Dub & Sub Matrix (Zero hallucination, derived from voice cast)',
       'Official OTT Legal Licensing Links (Crunchyroll, Netflix, Prime Video)',
       'Auto-Purging 60-Day News & Article Feed with TTL Index',
