@@ -32,8 +32,8 @@ app.use(express.json());
 export const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute window
   limit: 90, // Limit each client IP to 90 requests per minute
-  standardHeaders: 'draft-7', // Return RateLimit-* headers
-  legacyHeaders: false, // Disable X-RateLimit-* headers
+  standardHeaders: 'draft-7', // Return modern RateLimit headers (RateLimit: limit=90, remaining=89)
+  legacyHeaders: true, // Return X-RateLimit-* headers (X-RateLimit-Limit: 90, X-RateLimit-Remaining)
   validate: { trustProxy: false },
   message: {
     status: 429,
