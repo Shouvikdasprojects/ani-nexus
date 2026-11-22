@@ -19,9 +19,9 @@
     "api",
     "aninexus",
     "franchise",
-    "mal",
-    "anilist",
-    "tmdb",
+    "metadata",
+    "intelligence",
+    "anime-database",
     "rest-api"
   ],
   "author": "AnimeNationIndia",
@@ -31,6 +31,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.7.5",
     "helmet": "^8.0.0",
     "mongoose": "^8.9.2",
     "rss-parser": "^3.13.0"

@@ -2,6 +2,7 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
+import { rateLimit } from 'express-rate-limit';
 
 import { seriesRouter } from './routes/seriesRoutes.js';
 import { animeRouter } from './routes/animeRoutes.js';
@@ -18,11 +19,33 @@ import { staffRouter } from './routes/staffRoutes.js';
 
 export const app: Application = express();
 
+// Enable reverse proxy support (Render.com / Cloudflare real client IP)
+app.set('trust proxy', 1);
+
 // Security & Optimization Middlewares
 app.use(helmet());
 app.use(cors());
 app.use(compression());
 app.use(express.json());
+
+// Public API Rate Limiter: 90 requests per minute per IP
+export const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  limit: 90, // Limit each client IP to 90 requests per minute
+  standardHeaders: 'draft-7', // Return RateLimit-* headers
+  legacyHeaders: false, // Disable X-RateLimit-* headers
+  validate: { trustProxy: false },
+  message: {
+    status: 429,
+    error: 'Too Many Requests',
+    message: 'Rate limit exceeded: Maximum 90 requests per minute allowed. Please try again after 60 seconds.',
+    retryAfterSeconds: 60,
+  },
+  skip: (req: Request) => req.path === '/health' || req.path === '/',
+});
+
+// Apply rate limiter to all API routes
+app.use(apiLimiter);
 
 // Root & Health Verification
 app.get('/', (_req: Request, res: Response) => {
@@ -31,6 +54,7 @@ app.get('/', (_req: Request, res: Response) => {
     name: 'AniNexus API',
     tagline: 'Enterprise-grade Anime Metadata & Intelligence API',
     version: '1.0.0',
+    rateLimit: '90 requests per minute per IP',
     documentation: {
       series: '/api/v1/series/:slug',
       timeline: '/api/v1/series/:slug/timeline',
@@ -67,6 +91,7 @@ app.get('/', (_req: Request, res: Response) => {
       'Verified Dub & Sub Matrix (Zero hallucination, derived from voice cast)',
       'Official OTT Legal Licensing Links (Crunchyroll, Netflix, Prime Video)',
       'Auto-Purging 60-Day News & Article Feed with TTL Index',
+      'Fair-Use Rate Limiter (90 requests/minute per client IP with standard RateLimit headers)',
     ],
   });
 });

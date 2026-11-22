@@ -39,7 +39,7 @@
 6. **7-Day Live Broadcast Airing Calendar:** 138+ weekly live airing episodes with UTC countdowns, episode progress counters, and main animation studio credits (`/api/v1/schedule`).
 7. **5-Year Rolling Awards Vault:** Curates Official Industry Anime Awards from 2021 to 2026 with strict automated 6th-year auto-purge (`HTTP 410 Gone`).
 8. **Intelligent News & Editorial Routing:** Automatically syncs RSS feeds every cycle. Items with verified cover images route to `/api/v1/news`, while text-only editorials route to `/api/v1/articles` (enforced with 60-day automated TTL auto-purge).
-9. **Zero-Token Public Access:** CORS-enabled (`*`) public endpoints with rate-limiting protection (60 req/min).
+9. **Zero-Token Public Access:** CORS-enabled (`*`) public endpoints with fair-use rate limiting (90 req/min).
 
 ---
 
