@@ -3,11 +3,15 @@
 # ⛩️ AniNexus Core Gateway
 ### High-Performance Anime Metadata, Master Franchise & Intelligence REST API Engine
 
+[![CI: Automated Tests](https://github.com/Shouvikdasprojects/ani-nexus/actions/workflows/ci.yml/badge.svg)](https://github.com/Shouvikdasprojects/ani-nexus/actions/workflows/ci.yml)
+[![Sync: Twice Daily](https://github.com/Shouvikdasprojects/ani-nexus/actions/workflows/daily-sync.yml/badge.svg)](https://github.com/Shouvikdasprojects/ani-nexus/actions/workflows/daily-sync.yml)
+[![OpenAPI 3.1 Spec](https://img.shields.io/badge/OpenAPI-3.1.0-6BA539?style=for-the-badge&logo=openapiinitiative)](https://ani-nexus.onrender.com/openapi.json)
+[![Rate Limit](https://img.shields.io/badge/Rate%20Limit-90%20req%2Fmin-blue?style=for-the-badge&logo=speedtest)](https://ani-nexus.onrender.com/health/detailed)
+[![HTTP Cache: 3600s Edge CDN](https://img.shields.io/badge/HTTP%20Cache-3600s%20Edge%20CDN-7C3AED?style=for-the-badge)](https://ani-nexus.onrender.com/api/v1/series/attack-on-titan)
+[![Tracing: X-Request-Id](https://img.shields.io/badge/Tracing-X--Request--Id-0284C7?style=for-the-badge)](https://ani-nexus.onrender.com/health/detailed)
 [![Engine: Node.js / Express](https://img.shields.io/badge/Engine-Node.js%20%2F%20Express-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://expressjs.com/)
 [![Language: TypeScript](https://img.shields.io/badge/Language-TypeScript%205-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Infrastructure: Cloud Cluster](https://img.shields.io/badge/Infrastructure-Distributed%20Cloud-10B981?style=for-the-badge&logo=icloud&logoColor=white)](https://ani-nexus.onrender.com/health)
-[![Hosting: Render](https://img.shields.io/badge/Deploy-Render.com-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://ani-nexus.onrender.com/health)
-[![Architecture: REST API v1](https://img.shields.io/badge/Protocol-REST%20v1%20(JSON)-8B5CF6?style=for-the-badge)](https://aninexus-api-website.pages.dev/docs)
+[![Deploy: Render.com](https://img.shields.io/badge/Deploy-Render.com-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://ani-nexus.onrender.com/health)
 [![Auth: Zero-Token Free](https://img.shields.io/badge/Auth-100%25%20Free%20%2F%20Open-3B82F6?style=for-the-badge)](https://aninexus-api-website.pages.dev/docs)
 
 <p align="center">

@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "test": "tsx --test tests/**/*.test.ts",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "seed:top": "tsx src/scripts/seedTop.ts",
