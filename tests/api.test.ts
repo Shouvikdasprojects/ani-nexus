@@ -1,13 +1,16 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import mongoose from 'mongoose';
 import { app } from '../src/app.js';
+import { connectDatabase } from '../src/config/database.js';
 
 describe('AniNexus API Engine Integration & Smoke Tests', () => {
   let server: http.Server;
   let baseUrl: string;
 
   before(async () => {
+    await connectDatabase();
     await new Promise<void>((resolve) => {
       server = app.listen(0, () => {
         const address = server.address() as any;
@@ -19,6 +22,7 @@ describe('AniNexus API Engine Integration & Smoke Tests', () => {
 
   after(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    await mongoose.disconnect();
   });
 
   test('GET /health returns 200 with X-Request-Id and valid health schema', async () => {
@@ -71,6 +75,32 @@ describe('AniNexus API Engine Integration & Smoke Tests', () => {
     assert.equal(data.version, '1.0.0');
     assert.ok(data.rateLimit.includes('90 requests per minute'));
     assert.ok(Array.isArray(data.features));
+  });
+
+  test('GET /api/v1/manga returns 200 with reading catalog and pagination meta', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/manga`);
+    assert.equal(res.status, 200);
+
+    const cacheHeader = res.headers.get('cache-control');
+    assert.ok(cacheHeader?.includes('public'), 'Manga endpoint must have public Cache-Control');
+
+    const data = await res.json() as any;
+    assert.equal(data.success, true);
+    assert.ok(Array.isArray(data.data));
+    assert.ok(typeof data.meta.total === 'number');
+  });
+
+  test('GET /api/v1/manga/types returns 200 with all supported print media categories', async () => {
+    const res = await fetch(`${baseUrl}/api/v1/manga/types`);
+    assert.equal(res.status, 200);
+
+    const data = await res.json() as any;
+    assert.equal(data.success, true);
+    assert.ok(Array.isArray(data.data));
+    const typeNames = data.data.map((t: any) => t.type);
+    assert.ok(typeNames.includes('MANGA'));
+    assert.ok(typeNames.includes('MANHWA'));
+    assert.ok(typeNames.includes('LIGHT_NOVEL'));
   });
 
   test('GET /api/unknown-route returns 404 with structured error and requestId', async () => {

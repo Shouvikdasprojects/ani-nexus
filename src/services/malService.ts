@@ -126,6 +126,49 @@ class MalService {
     );
     return res?.data?.map((item: any) => item.node) || [];
   }
+
+  async getMangaDetails(malId: number): Promise<any | null> {
+    const fields = [
+      'id',
+      'title',
+      'main_picture',
+      'alternative_titles',
+      'start_date',
+      'end_date',
+      'synopsis',
+      'mean',
+      'rank',
+      'popularity',
+      'num_scoring_users',
+      'nsfw',
+      'media_type',
+      'status',
+      'genres',
+      'num_volumes',
+      'num_chapters',
+      'authors{first_name,last_name}',
+      'pictures',
+      'background',
+      'related_anime',
+      'related_manga',
+      'recommendations',
+      'serialization{name}',
+    ].join(',');
+
+    return this.fetchFromMAL(`/manga/${malId}?fields=${fields}`);
+  }
+
+  async searchManga(query: string, limit: number = 10): Promise<any[]> {
+    if (!query) return [];
+    const res = await this.fetchFromMAL(
+      `/manga?q=${encodeURIComponent(query)}&limit=${limit}&fields=id,title,main_picture,mean,rank,media_type,start_date`
+    );
+    return res?.data?.map((item: any) => item.node) || [];
+  }
+
+  async getTopManga(rankingType: string = 'all', limit: number = 50, offset: number = 0): Promise<any | null> {
+    return this.fetchFromMAL(`/manga/ranking?ranking_type=${rankingType}&limit=${limit}&offset=${offset}`);
+  }
 }
 
 export const malService = new MalService();

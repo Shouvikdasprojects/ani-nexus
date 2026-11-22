@@ -21,6 +21,7 @@ export function smartCacheMiddleware(req: Request, res: Response, next: NextFunc
   else if (
     path.startsWith('/api/v1/series') ||
     path.startsWith('/api/v1/anime') ||
+    path.startsWith('/api/v1/manga') ||
     path.startsWith('/api/v1/characters') ||
     path.startsWith('/api/v1/staff') ||
     path.startsWith('/api/v1/genres') ||

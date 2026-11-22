@@ -13,6 +13,8 @@
     "seed:range": "tsx src/scripts/seedRange.ts",
     "seed:awards": "tsx src/scripts/seedAwards.ts",
     "seed:curated": "tsx src/scripts/seedCurated.ts",
+    "seed:manga": "tsx src/scripts/seedManga.ts",
+    "seed:manga:all": "tsx src/scripts/seedManga.ts --all",
     "sync:daily": "tsx src/scripts/dailySync.ts"
   },
   "keywords": [

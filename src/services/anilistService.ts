@@ -2,9 +2,9 @@ import { config } from '../config/index.js';
 
 class AniListService {
   private lastRequestTime = 0;
-  private minGapMs = 700; // Throttle to stay safely within 90 req/min limit
+  private minGapMs = 850; // Throttle to stay safely within 90 req/min limit
 
-  private async fetchGraphQL(query: string, variables: Record<string, any> = {}): Promise<any | null> {
+  private async fetchGraphQL(query: string, variables: Record<string, any> = {}, retryCount = 0): Promise<any | null> {
     const now = Date.now();
     const elapsed = now - this.lastRequestTime;
     if (elapsed < this.minGapMs) {
@@ -21,8 +21,15 @@ class AniListService {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         },
         body: JSON.stringify({ query, variables }),
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(15000),
       });
+
+      if (res.status === 429 && retryCount < 3) {
+        const retryAfter = parseInt(res.headers.get('retry-after') || '60', 10);
+        console.warn(`⏳ [AniList Rate Limiter]: 429 cooldown encountered. Auto-waiting ${retryAfter}s before retry (${retryCount + 1}/3)...`);
+        await new Promise((r) => setTimeout(r, (retryAfter + 1) * 1000));
+        return this.fetchGraphQL(query, variables, retryCount + 1);
+      }
 
       if (!res.ok) {
         console.warn(`[AniList Service Warning]: HTTP ${res.status} ${res.statusText}`);
@@ -370,6 +377,122 @@ class AniListService {
     `;
 
     const data = await this.fetchGraphQL(query, { search });
+    return data?.Page?.media || [];
+  }
+
+  async getMangaDetails(idOrMalId: { aniId?: number; malId?: number }): Promise<any | null> {
+    const query = `
+      query ($id: Int, $idMal: Int) {
+        Media(id: $id, idMal: $idMal, type: MANGA) {
+          id
+          idMal
+          title {
+            romaji
+            english
+            native
+            userPreferred
+          }
+          synonyms
+          format
+          countryOfOrigin
+          status
+          description(asHtml: false)
+          startDate { year month day }
+          endDate { year month day }
+          chapters
+          volumes
+          isAdult
+          genres
+          tags {
+            name
+            rank
+          }
+          averageScore
+          meanScore
+          popularity
+          favourites
+          coverImage {
+            extraLarge
+            large
+          }
+          bannerImage
+          staff(perPage: 12) {
+            edges {
+              role
+              node {
+                id
+                name { full native }
+                image { large }
+              }
+            }
+          }
+          characters(perPage: 15, sort: [ROLE, RELEVANCE]) {
+            edges {
+              role
+              node {
+                id
+                name { full native }
+                image { large }
+              }
+            }
+          }
+          relations {
+            edges {
+              relationType
+              node {
+                id
+                idMal
+                type
+                format
+                status
+                title { romaji english userPreferred }
+                coverImage { large }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const variables: Record<string, any> = {};
+    if (idOrMalId.aniId) variables.id = idOrMalId.aniId;
+    if (idOrMalId.malId) variables.idMal = idOrMalId.malId;
+
+    const data = await this.fetchGraphQL(query, variables);
+    return data?.Media || null;
+  }
+
+  async getTopManga(
+    page: number = 1,
+    perPage: number = 50,
+    sort: string[] = ['POPULARITY_DESC'],
+    filters?: { countryOfOrigin?: string; format?: string }
+  ): Promise<any[]> {
+    const query = `
+      query ($page: Int, $perPage: Int, $sort: [MediaSort], $countryOfOrigin: CountryCode, $format: MediaFormat) {
+        Page(page: $page, perPage: $perPage) {
+          media(type: MANGA, sort: $sort, countryOfOrigin: $countryOfOrigin, format: $format) {
+            id
+            idMal
+            title { romaji english native userPreferred }
+            format
+            countryOfOrigin
+            status
+            chapters
+            volumes
+            averageScore
+            popularity
+            coverImage { large }
+          }
+        }
+      }
+    `;
+
+    const variables: Record<string, any> = { page, perPage, sort };
+    if (filters?.countryOfOrigin) variables.countryOfOrigin = filters.countryOfOrigin;
+    if (filters?.format) variables.format = filters.format;
+
+    const data = await this.fetchGraphQL(query, variables);
     return data?.Page?.media || [];
   }
 }

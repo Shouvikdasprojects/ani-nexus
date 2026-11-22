@@ -16,6 +16,7 @@ import { topRouter } from './routes/topRoutes.js';
 import { awardRouter } from './routes/awardRoutes.js';
 import { characterRouter } from './routes/characterRoutes.js';
 import { staffRouter } from './routes/staffRoutes.js';
+import { mangaRouter } from './routes/mangaRoutes.js';
 import { requestIdMiddleware } from './utils/requestId.js';
 import { smartCacheMiddleware } from './utils/cache.js';
 import { getVaultHealthStatus } from './config/database.js';
@@ -93,6 +94,12 @@ app.get('/', (_req: Request, res: Response) => {
       staff: '/api/v1/staff/:idOrSlug',
       staffSearch: '/api/v1/staff/search?q={name}',
       search: '/api/v1/search?q={title}',
+      manga: '/api/v1/manga',
+      mangaTop: '/api/v1/manga/top?type={popular|rated|manhwa|novels}',
+      mangaManhwa: '/api/v1/manga/manhwa',
+      mangaTypes: '/api/v1/manga/types',
+      mangaEntry: '/api/v1/manga/:idOrSlug',
+      mangaAdaptations: '/api/v1/manga/:idOrSlug/adaptations',
     },
     features: [
       'Master Franchise Document (All seasons, movies, OVAs unified)',
@@ -161,6 +168,7 @@ app.use('/api/v1/awards', awardRouter);
 app.use('/api/v1/characters', characterRouter);
 app.use('/api/v1/staff', staffRouter);
 app.use('/api/v1/search', searchRouter);
+app.use('/api/v1/manga', mangaRouter);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {

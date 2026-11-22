@@ -5,15 +5,17 @@ import { CharacterSchema, ICharacter, Character } from '../models/Character.js';
 import { StaffSchema, IStaff, Staff } from '../models/Staff.js';
 import { NewsSchema, INews, News } from '../models/News.js';
 import { ScheduleSnapshotSchema, IScheduleSnapshot, ScheduleSnapshot } from '../models/ScheduleSnapshot.js';
+import { MangaSchema, IManga, Manga } from '../models/Manga.js';
 
 // Connection Handles
 let overflowConnection: Connection | null = null;
 let realtimeConnection: Connection | null = null;
 
-// Vault 2: Overflow Models
+// Vault 2: Overflow & Reading Models
 let OverflowFranchise: Model<IFranchise> | null = null;
 let OverflowCharacter: Model<ICharacter> | null = null;
 let OverflowStaff: Model<IStaff> | null = null;
+let OverflowManga: Model<IManga> | null = null;
 
 // Vault 3: Real-Time Models
 let RealtimeNews: Model<INews> | null = null;
@@ -97,6 +99,7 @@ export async function connectDatabase(): Promise<typeof mongoose> {
       OverflowFranchise = overflowConnection.model<IFranchise>('Franchise', FranchiseSchema);
       OverflowCharacter = overflowConnection.model<ICharacter>('Character', CharacterSchema);
       OverflowStaff = overflowConnection.model<IStaff>('Staff', StaffSchema);
+      OverflowManga = overflowConnection.model<IManga>('Manga', MangaSchema);
     } catch (err: any) {
       console.warn('⚠️ Could not initialize Vault 2 (Overflow) connection:', err.message);
     }
@@ -160,6 +163,10 @@ export function getNewsModel(): Model<INews> {
 
 export function getScheduleSnapshotModel(): Model<IScheduleSnapshot> {
   return RealtimeSchedule || ScheduleSnapshot;
+}
+
+export function getMangaModel(): Model<IManga> {
+  return OverflowManga || (Manga as Model<IManga>);
 }
 
 /**

@@ -266,3 +266,59 @@ seriesRouter.get('/:slug/characters', async (req: Request, res: Response): Promi
     });
   }
 });
+
+/**
+ * GET /api/v1/series/:slug/adaptations
+ * Source Material & Reading Adaptations (Manga, Manhwa, Light Novel)
+ */
+seriesRouter.get('/:slug/adaptations', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const slug = String(req.params.slug);
+    const franchise = await findFranchise({ slug });
+
+    if (!franchise) {
+      res.status(404).json({
+        success: false,
+        error: `Franchise '${slug}' not found.`,
+      });
+      return;
+    }
+
+    const { getMangaModel } = await import('../config/database.js');
+    const MangaModel = getMangaModel();
+
+    // Query Vault 2 for matching manga/novel by slug or adaptation link
+    const matchingManga = await MangaModel.find({
+      $or: [
+        { slug },
+        { 'adaptations.slug': slug },
+        { 'titles.primary': new RegExp(franchise.titles?.primary || '', 'i') },
+      ],
+    }).lean();
+
+    res.json({
+      success: true,
+      data: {
+        franchise: franchise.titles?.primary,
+        slug,
+        totalAdaptations: matchingManga.length,
+        sourceMaterials: matchingManga.map((m) => ({
+          title: m.titles?.primary,
+          slug: m.slug,
+          type: m.type, // 'MANGA' | 'MANHWA' | 'LIGHT_NOVEL'
+          status: m.status,
+          chapters: m.chapters,
+          volumes: m.volumes,
+          score: m.scores?.weightedAverage,
+          cover: m.images?.cover,
+          creators: m.creators,
+        })),
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
