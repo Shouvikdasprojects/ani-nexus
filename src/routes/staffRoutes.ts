@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getStaffModel } from '../config/database.js';
+import { getStaffModel, getVault1BStaffModel } from '../config/database.js';
 import { characterStaffService } from '../services/characterStaffService.js';
 
 export const staffRouter = Router();
@@ -39,6 +39,7 @@ staffRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<void>
   try {
     const idOrSlug = String(req.params.idOrSlug).trim();
     const StaffModel = getStaffModel();
+    const Vault1BStaffModel = getVault1BStaffModel();
 
     let person: any = null;
     const numericId = Number(idOrSlug);
@@ -47,6 +48,11 @@ staffRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<void>
       person = await StaffModel.findOne({
         $or: [{ staffId: numericId }, { malId: numericId }],
       }).lean();
+      if (!person && Vault1BStaffModel) {
+        person = await Vault1BStaffModel.findOne({
+          $or: [{ staffId: numericId }, { malId: numericId }],
+        }).lean();
+      }
     } else {
       person = await StaffModel.findOne({
         $or: [
@@ -54,6 +60,14 @@ staffRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<void>
           { slug: new RegExp(`^${idOrSlug}`, 'i') },
         ],
       }).lean();
+      if (!person && Vault1BStaffModel) {
+        person = await Vault1BStaffModel.findOne({
+          $or: [
+            { slug: idOrSlug },
+            { slug: new RegExp(`^${idOrSlug}`, 'i') },
+          ],
+        }).lean();
+      }
     }
 
     // On-Demand Ingestion: if not in database, attempt real-time fetch & cache

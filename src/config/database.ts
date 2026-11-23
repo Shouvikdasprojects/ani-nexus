@@ -221,8 +221,16 @@ export function getCharacterModel(): Model<ICharacter> {
   return Character;
 }
 
+export function getVault1BCharacterModel(): Model<ICharacter> | null {
+  return Vault1BCharacter;
+}
+
 export function getStaffModel(): Model<IStaff> {
   return Staff;
+}
+
+export function getVault1BStaffModel(): Model<IStaff> | null {
+  return Vault1BStaff;
 }
 
 export function getNewsModel(): Model<INews> {

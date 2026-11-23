@@ -25,4 +25,4 @@ Thumbs.db
 
 # Backups and Local Run Artifacts
 backups/
-src/scripts/
+data/

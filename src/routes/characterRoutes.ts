@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getCharacterModel } from '../config/database.js';
+import { getCharacterModel, getVault1BCharacterModel } from '../config/database.js';
 import { characterStaffService } from '../services/characterStaffService.js';
 
 export const characterRouter = Router();
@@ -39,6 +39,7 @@ characterRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<v
   try {
     const idOrSlug = String(req.params.idOrSlug).trim();
     const CharacterModel = getCharacterModel();
+    const Vault1BCharModel = getVault1BCharacterModel();
 
     let character: any = null;
     const numericId = Number(idOrSlug);
@@ -47,6 +48,11 @@ characterRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<v
       character = await CharacterModel.findOne({
         $or: [{ characterId: numericId }, { malId: numericId }],
       }).lean();
+      if (!character && Vault1BCharModel) {
+        character = await Vault1BCharModel.findOne({
+          $or: [{ characterId: numericId }, { malId: numericId }],
+        }).lean();
+      }
     } else {
       character = await CharacterModel.findOne({
         $or: [
@@ -54,6 +60,14 @@ characterRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<v
           { slug: new RegExp(`^${idOrSlug}`, 'i') },
         ],
       }).lean();
+      if (!character && Vault1BCharModel) {
+        character = await Vault1BCharModel.findOne({
+          $or: [
+            { slug: idOrSlug },
+            { slug: new RegExp(`^${idOrSlug}`, 'i') },
+          ],
+        }).lean();
+      }
     }
 
     // On-Demand Ingestion: if not in database, attempt real-time fetch & cache
