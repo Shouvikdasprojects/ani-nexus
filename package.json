@@ -15,6 +15,7 @@
     "seed:curated": "tsx src/scripts/seedCurated.ts",
     "seed:manga": "tsx src/scripts/seedManga.ts",
     "seed:manga:all": "tsx src/scripts/seedManga.ts --all",
+    "seed:manga:years": "tsx src/scripts/seedYearSlices.ts",
     "sync:daily": "tsx src/scripts/dailySync.ts"
   },
   "keywords": [

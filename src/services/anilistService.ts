@@ -495,6 +495,38 @@ class AniListService {
     const data = await this.fetchGraphQL(query, variables);
     return data?.Page?.media || [];
   }
+
+  async getMangaByYear(year: number, page: number = 1, perPage: number = 50): Promise<any[]> {
+    const query = `
+      query ($page: Int, $perPage: Int, $greater: FuzzyDateInt, $lesser: FuzzyDateInt) {
+        Page(page: $page, perPage: $perPage) {
+          media(type: MANGA, startDate_greater: $greater, startDate_lesser: $lesser, sort: [POPULARITY_DESC]) {
+            id
+            idMal
+            title { romaji english native userPreferred }
+            format
+            countryOfOrigin
+            status
+            chapters
+            volumes
+            averageScore
+            popularity
+            coverImage { large }
+          }
+        }
+      }
+    `;
+
+    const variables = {
+      page,
+      perPage,
+      greater: year * 10000,
+      lesser: year * 10000 + 1231,
+    };
+
+    const data = await this.fetchGraphQL(query, variables);
+    return data?.Page?.media || [];
+  }
 }
 
 export const anilistService = new AniListService();

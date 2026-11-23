@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getMangaModel } from '../config/database.js';
 import { mangaBuilder } from '../services/mangaBuilder.js';
+import { mangadexService } from '../services/mangadexService.js';
 
 export const mangaRouter = Router();
 
@@ -279,3 +280,79 @@ mangaRouter.get('/:idOrSlug/characters', async (req: Request, res: Response): Pr
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+/**
+ * GET /api/v1/manga/:idOrSlug/chapters
+ * Live Chapter Index, Release Dates & Official Legal Reading Sources (Powered by MangaDex API)
+ * Query params: ?limit=50 &page=1 &language=en
+ */
+mangaRouter.get('/:idOrSlug/chapters', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const MangaModel = getMangaModel();
+    const param = String(req.params.idOrSlug).trim();
+    const isNumeric = /^[0-9]+$/.test(param);
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const offset = (page - 1) * limit;
+    const language = String(req.query.language || 'en').toLowerCase();
+
+    const doc = isNumeric
+      ? await MangaModel.findOne({ $or: [{ 'ids.aniId': parseInt(param, 10) }, { 'ids.malId': parseInt(param, 10) }] }).lean()
+      : await MangaModel.findOne({ slug: param.toLowerCase() }).lean();
+
+    if (!doc) {
+      res.status(404).json({ success: false, error: `Manga '${param}' not found in Vault 2.` });
+      return;
+    }
+
+    // Resolve Manga on MangaDex
+    const mdManga = await mangadexService.findManga({
+      title: doc.titles.english || doc.titles.romaji || doc.titles.primary,
+      aniId: doc.ids?.aniId,
+      malId: doc.ids?.malId,
+    });
+
+    if (!mdManga) {
+      res.json({
+        success: true,
+        data: {
+          slug: doc.slug,
+          title: doc.titles.primary,
+          totalChapters: doc.chapters || 0,
+          source: 'vault-metadata',
+          officialReadingUrl: doc.licensing?.officialReadingUrl || null,
+          chapters: [],
+          notice: 'Detailed live chapter index is not indexed on MangaDex yet.',
+        },
+      });
+      return;
+    }
+
+    const { total, chapters } = await mangadexService.getChapters(mdManga.mangadexId, {
+      language,
+      limit,
+      offset,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        slug: doc.slug,
+        title: doc.titles.primary,
+        mangadexId: mdManga.mangadexId,
+        status: mdManga.status,
+        officialReadingUrl: mdManga.officialReadingUrl || doc.licensing?.officialReadingUrl || null,
+        rawUrl: mdManga.rawUrl || null,
+        language,
+        totalChapters: total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+        chapters,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
