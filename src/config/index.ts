@@ -19,7 +19,9 @@ export const config = {
   env: process.env.NODE_ENV || 'development',
   mongodb: {
     primaryUri: process.env.MONGODB_PRIMARY_URI || process.env.MONGODB_URI || '',
+    vault1bUri: process.env.MONGODB_VAULT1B_URI || '',
     overflowUri: process.env.MONGODB_OVERFLOW_URI || process.env.MONGODB_SECONDARY_URI || '',
+    vault2bUri: process.env.MONGODB_VAULT2B_URI || '',
     realtimeUri: process.env.MONGODB_REALTIME_URI || '',
     uri: process.env.MONGODB_PRIMARY_URI || process.env.MONGODB_URI || '',
     secondaryUri: process.env.MONGODB_OVERFLOW_URI || process.env.MONGODB_SECONDARY_URI || '',
