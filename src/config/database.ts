@@ -46,7 +46,8 @@ export async function isPrimaryVaultFull(): Promise<boolean> {
   try {
     const stats = await mongoose.connection.db?.stats();
     if (stats) {
-      const sizeMB = (stats.storageSize || stats.dataSize || 0) / (1024 * 1024);
+      // Atlas M0 Free Tier calculates capacity as Logical Data Size + Index Size
+      const sizeMB = ((stats.dataSize || 0) + (stats.indexSize || 0)) / (1024 * 1024);
       isPrimaryFull = sizeMB >= PRIMARY_CAPACITY_LIMIT_MB;
       lastStorageCheck = now;
       console.log(`📊 [Storage Monitor] Vault 1 (Primary): ${sizeMB.toFixed(2)} MB / 512 MB (Capacity Full: ${isPrimaryFull})`);
@@ -268,7 +269,7 @@ export async function isVault2Full(): Promise<boolean> {
     if (overflowConnection?.db) {
       const stats = await overflowConnection.db.stats();
       if (stats) {
-        const sizeMB = (stats.storageSize || stats.dataSize || 0) / (1024 * 1024);
+        const sizeMB = ((stats.dataSize || 0) + (stats.indexSize || 0)) / (1024 * 1024);
         isVault2FullFlag = sizeMB >= PRIMARY_CAPACITY_LIMIT_MB;
         lastVault2Check = now;
       }

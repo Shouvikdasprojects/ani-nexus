@@ -24,7 +24,7 @@ const args = process.argv.slice(2).reduce((acc: Record<string, string>, curr) =>
 
 const mode = (args.mode || 'both').toLowerCase(); // 'both' | 'characters' | 'staff'
 const batchSize = parseInt(args.batchSize || '50', 10);
-const delayMs = parseInt(args.delay || '650', 10);
+const delayMs = parseInt(args.delay || '1200', 10);
 const maxCharId = parseInt(args.maxCharId || '415000', 10);
 const maxStaffId = parseInt(args.maxStaffId || '415000', 10);
 
