@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getMangaModel } from '../config/database.js';
+import { getMangaModel, getVault2BMangaModel } from '../config/database.js';
 import { mangaBuilder } from '../services/mangaBuilder.js';
 import { mangadexService } from '../services/mangadexService.js';
 
@@ -183,11 +183,19 @@ mangaRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<void>
 
     let doc: any = null;
 
+    const Vault2B = getVault2BMangaModel();
+
     if (isNumeric) {
       const numId = parseInt(param, 10);
       doc = await MangaModel.findOne({
         $or: [{ 'ids.aniId': numId }, { 'ids.malId': numId }],
       }).lean();
+
+      if (!doc && Vault2B) {
+        doc = await Vault2B.findOne({
+          $or: [{ 'ids.aniId': numId }, { 'ids.malId': numId }],
+        }).lean();
+      }
 
       if (!doc) {
         // Dynamic on-demand ingestion
@@ -196,6 +204,9 @@ mangaRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<void>
       }
     } else {
       doc = await MangaModel.findOne({ slug: param.toLowerCase() }).lean();
+      if (!doc && Vault2B) {
+        doc = await Vault2B.findOne({ slug: param.toLowerCase() }).lean();
+      }
     }
 
     if (!doc) {

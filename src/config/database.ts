@@ -34,8 +34,8 @@ let RealtimeSchedule: Model<IScheduleSnapshot> | null = null;
 // Storage Capacity Monitor for Vault 1 (Primary: aninexusapidb2)
 let isPrimaryFull = false;
 let lastStorageCheck = 0;
-const STORAGE_CHECK_INTERVAL = 30 * 60 * 1000; // 30 minutes
-const PRIMARY_CAPACITY_LIMIT_MB = 480; // 480MB threshold (of 512MB limit)
+const STORAGE_CHECK_INTERVAL = 60 * 1000; // 1 minute interval for responsive rolling
+const PRIMARY_CAPACITY_LIMIT_MB = 455; // 455MB threshold (57MB safety cushion below 512MB limit)
 
 export async function isPrimaryVaultFull(): Promise<boolean> {
   const now = Date.now();

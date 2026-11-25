@@ -1,4 +1,4 @@
-import { connectDatabase, getMangaModel } from '../config/database.js';
+import { connectDatabase, getMangaModel, getVault2BMangaModel } from '../config/database.js';
 import { anilistService } from '../services/anilistService.js';
 import { mangaBuilder } from '../services/mangaBuilder.js';
 import mongoose from 'mongoose';
@@ -78,6 +78,18 @@ async function seedYearSlices() {
                 ...(item.idMal ? [{ 'ids.malId': item.idMal }] : []),
               ],
             }).select('titles slug type');
+
+            if (!existing) {
+              const Vault2BManga = getVault2BMangaModel();
+              if (Vault2BManga) {
+                existing = await Vault2BManga.findOne({
+                  $or: [
+                    { 'ids.aniId': item.id },
+                    ...(item.idMal ? [{ 'ids.malId': item.idMal }] : []),
+                  ],
+                }).select('titles slug type');
+              }
+            }
             break;
           } catch (netErr: any) {
             dbRetry++;

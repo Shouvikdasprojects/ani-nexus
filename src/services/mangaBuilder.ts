@@ -1,4 +1,4 @@
-import { getMangaModel } from '../config/database.js';
+import { getMangaModel, getTargetMangaWriteModel } from '../config/database.js';
 import { IManga, IMangaAdaptation, IMangaCreator, IMangaGenre, IMangaCharacterRef } from '../models/Manga.js';
 import { anilistService } from './anilistService.js';
 import { malService } from './malService.js';
@@ -32,7 +32,7 @@ class MangaBuilder {
   }
 
   public async buildAndSaveManga(idTarget: { aniId?: number; malId?: number }): Promise<IManga | null> {
-    const MangaModel = getMangaModel();
+    const MangaModel = await getTargetMangaWriteModel();
 
     // 1. Fetch details from AniList
     const aniMedia = await anilistService.getMangaDetails(idTarget);
