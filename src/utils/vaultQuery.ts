@@ -1,5 +1,12 @@
 import { Model } from 'mongoose';
 
+/**
+ * Escapes RegExp metacharacters from untrusted user/title strings before building MongoDB regex queries.
+ */
+export function escapeRegex(input: string): string {
+  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function getNestedValue(obj: any, dotPath: string): any {
   if (!obj || !dotPath) return undefined;
   const parts = dotPath.split('.');

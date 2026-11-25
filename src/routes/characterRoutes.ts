@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getCharacterModel, getVault1BCharacterModel } from '../config/database.js';
 import { characterStaffService } from '../services/characterStaffService.js';
+import { escapeRegex } from '../utils/vaultQuery.js';
 
 export const characterRouter = Router();
 
@@ -54,17 +55,18 @@ characterRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<v
         }).lean();
       }
     } else {
+      const safeSlugPrefix = escapeRegex(idOrSlug);
       character = await CharacterModel.findOne({
         $or: [
           { slug: idOrSlug },
-          { slug: new RegExp(`^${idOrSlug}`, 'i') },
+          { slug: new RegExp(`^${safeSlugPrefix}`, 'i') },
         ],
       }).lean();
       if (!character && Vault1BCharModel) {
         character = await Vault1BCharModel.findOne({
           $or: [
             { slug: idOrSlug },
-            { slug: new RegExp(`^${idOrSlug}`, 'i') },
+            { slug: new RegExp(`^${safeSlugPrefix}`, 'i') },
           ],
         }).lean();
       }

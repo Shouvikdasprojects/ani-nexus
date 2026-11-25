@@ -106,7 +106,7 @@ export async function connectDatabase(): Promise<typeof mongoose> {
     try {
       vault1bConnection = mongoose.createConnection(vault1bUri, {
         maxPoolSize: 10,
-        minPoolSize: 2,
+        minPoolSize: 0,
         serverSelectionTimeoutMS: 10000,
         socketTimeoutMS: 45000,
         family: 4,
@@ -167,7 +167,7 @@ export async function connectDatabase(): Promise<typeof mongoose> {
     try {
       vault2bConnection = mongoose.createConnection(vault2bUri, {
         maxPoolSize: 10,
-        minPoolSize: 2,
+        minPoolSize: 0,
         serverSelectionTimeoutMS: 10000,
         socketTimeoutMS: 45000,
         family: 4,

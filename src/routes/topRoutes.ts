@@ -56,6 +56,13 @@ topRouter.get('/', async (req: Request, res: Response): Promise<void> => {
         break;
     }
 
+    const isAdultMode = String(req.query.isAdult ?? 'false').toLowerCase();
+    if (isAdultMode === 'true') {
+      mongoQuery['contentRating.isAdult'] = true;
+    } else if (isAdultMode !== 'all') {
+      mongoQuery['contentRating.isAdult'] = { $ne: true };
+    }
+
     const { total, results } = await findMergedAcrossVaults(getAllFranchiseModels(), {
       filter: mongoQuery,
       projection: {

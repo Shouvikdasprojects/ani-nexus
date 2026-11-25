@@ -174,17 +174,22 @@ npm install
 Create a `.env` file in the root directory:
 ```env
 PORT=5055
-MONGODB_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/aninexus?retryWrites=true&w=majority
+MONGODB_PRIMARY_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/aninexus?retryWrites=true&w=majority
+MONGODB_VAULT1B_URI=mongodb+srv://<user>:<password>@vault1b.mongodb.net/aninexus?retryWrites=true&w=majority
+MONGODB_OVERFLOW_URI=mongodb+srv://<user>:<password>@vault2.mongodb.net/aninexus?retryWrites=true&w=majority
+MONGODB_VAULT2B_URI=mongodb+srv://<user>:<password>@vault2b.mongodb.net/aninexus?retryWrites=true&w=majority
+MONGODB_REALTIME_URI=mongodb+srv://<user>:<password>@vault3.mongodb.net/aninexus?retryWrites=true&w=majority
 
 # OTT & High-Res Imagery Pipeline Key
-MEDIA_API_KEY=your_media_api_key_here
+TMDB_API_KEY=your_tmdb_api_key_here
+TMDB_READ_ACCESS_TOKEN=your_tmdb_bearer_token
 
 # Multi-Key Round-Robin Rotator Pool
-KEY_1=your_upstream_key_1
-KEY_2=your_upstream_key_2
-KEY_3=your_upstream_key_3
-KEY_4=your_upstream_key_4
-KEY_5=your_upstream_key_5
+MAL_KEY_1=your_mal_client_id_1
+MAL_KEY_2=your_mal_client_id_2
+MAL_KEY_3=your_mal_client_id_3
+MAL_KEY_4=your_mal_client_id_4
+MAL_KEY_5=your_mal_client_id_5
 ```
 
 ### 4. Running the Server

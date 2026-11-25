@@ -8,6 +8,7 @@ import {
 } from '../config/database.js';
 import { ICharacter } from '../models/Character.js';
 import { IStaff, ISocialLink } from '../models/Staff.js';
+import { escapeRegex } from '../utils/vaultQuery.js';
 
 class CharacterStaffService {
   private anilistUrl = 'https://graphql.anilist.co';
@@ -585,12 +586,13 @@ class CharacterStaffService {
   public async searchCharacters(q: string, limit: number = 20): Promise<any[]> {
     const CharacterModel = getCharacterModel();
     const Vault1BModel = getVault1BCharacterModel();
+    const safeQ = escapeRegex(q);
     const filter = {
       $or: [
-        { 'name.full': { $regex: q, $options: 'i' } },
-        { 'name.native': { $regex: q, $options: 'i' } },
-        { 'name.alternative': { $regex: q, $options: 'i' } },
-        { slug: { $regex: q, $options: 'i' } },
+        { 'name.full': { $regex: safeQ, $options: 'i' } },
+        { 'name.native': { $regex: safeQ, $options: 'i' } },
+        { 'name.alternative': { $regex: safeQ, $options: 'i' } },
+        { slug: { $regex: safeQ, $options: 'i' } },
       ],
     };
 
@@ -617,12 +619,13 @@ class CharacterStaffService {
   public async searchStaff(q: string, limit: number = 20): Promise<any[]> {
     const StaffModel = getStaffModel();
     const Vault1BStaffModel = getVault1BStaffModel();
+    const safeQ = escapeRegex(q);
     const filter = {
       $or: [
-        { 'name.full': { $regex: q, $options: 'i' } },
-        { 'name.native': { $regex: q, $options: 'i' } },
-        { 'name.alternative': { $regex: q, $options: 'i' } },
-        { slug: { $regex: q, $options: 'i' } },
+        { 'name.full': { $regex: safeQ, $options: 'i' } },
+        { 'name.native': { $regex: safeQ, $options: 'i' } },
+        { 'name.alternative': { $regex: safeQ, $options: 'i' } },
+        { slug: { $regex: safeQ, $options: 'i' } },
       ],
     };
 

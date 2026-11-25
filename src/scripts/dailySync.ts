@@ -1,8 +1,8 @@
 import { connectDatabase } from '../config/database.js';
 import { newsService } from '../services/newsService.js';
-import { anilistService } from '../services/anilistService.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
 import { awardService } from '../services/awardService.js';
+import { fetchAndPersistWeeklySchedule } from '../services/scheduleService.js';
 import mongoose from 'mongoose';
 
 async function runDailySync() {
@@ -14,13 +14,11 @@ async function runDailySync() {
   const newsResult = await newsService.syncFeeds();
   console.log(`   News Synced: ${newsResult.synced}, Skipped: ${newsResult.skipped}`);
 
-  // 2. Sync Current Airing Shows
-  console.log('📺 Syncing Airing Schedule & Current Broadcasts...');
-  const now = Math.floor(Date.now() / 1000);
-  const next3Days = now + 3 * 24 * 60 * 60;
-  const schedules = await anilistService.getAiringSchedule(now, next3Days);
+  // 2. Sync & Persist 7-Day Airing Schedule Snapshot to Vault 3
+  console.log('📺 Syncing Airing Schedule Snapshot & Current Broadcasts...');
+  const { payload, rawSchedules: schedules } = await fetchAndPersistWeeklySchedule();
 
-  console.log(`   Discovered ${schedules.length} active episodes airing in next 72 hours.`);
+  console.log(`   Discovered ${schedules.length} active episodes airing in next 7 days (Vault 3 snapshot refreshed: ${payload.totalAiringThisWeek} entries).`);
 
   // Ingest/Refresh top 15 currently airing franchises
   let count = 0;

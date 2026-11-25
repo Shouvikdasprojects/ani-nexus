@@ -6,6 +6,7 @@ import {
   getAllMangaModels,
 } from '../config/database.js';
 import {
+  escapeRegex,
   findOneAcrossVaults,
   findUnpaginatedMergedAcrossVaults,
 } from '../utils/vaultQuery.js';
@@ -287,13 +288,14 @@ seriesRouter.get('/:slug/adaptations', async (req: Request, res: Response): Prom
     }
 
     // Query Vault 2 & Vault 2B for matching manga/novel by slug or adaptation link
+    const safeTitle = franchise.titles?.primary ? escapeRegex(franchise.titles.primary) : '';
+    const orFilters: any[] = [{ slug }, { 'adaptations.slug': slug }];
+    if (safeTitle) {
+      orFilters.push({ 'titles.primary': new RegExp(safeTitle, 'i') });
+    }
     const matchingManga = await findUnpaginatedMergedAcrossVaults(getAllMangaModels(), {
       filter: {
-        $or: [
-          { slug },
-          { 'adaptations.slug': slug },
-          { 'titles.primary': new RegExp(franchise.titles?.primary || '', 'i') },
-        ],
+        $or: orFilters,
       },
       dedupeKey: 'slug',
     });

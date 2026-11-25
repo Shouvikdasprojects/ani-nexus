@@ -35,6 +35,7 @@ export const openApiSpec = {
     { name: 'Broadcast & Media', description: '7-day weekly release schedule and verified YouTube promo trailers' },
     { name: 'News & Articles', description: 'Auto-aggregated anime industry news and deep-dive editorial articles' },
     { name: 'Characters & Staff', description: 'Comprehensive character profiles, seiyuu cast, and voice actor portfolios' },
+    { name: 'Print Media (Manga & Novels)', description: 'Manga, Korean Manhwa, Chinese Manhua, Light Novels & MangaDex chapters' },
     { name: 'Discovery & Search', description: 'Multi-factor faceted filtering, genre directory, and global search' },
   ],
   paths: {
@@ -84,8 +85,10 @@ export const openApiSpec = {
                       type: 'object',
                       properties: {
                         vault1Primary: { type: 'string', example: 'connected' },
-                        vault2Overflow: { type: 'string', example: 'standby' },
-                        vault3Realtime: { type: 'string', example: 'standby' },
+                        vault1bOverflow: { type: 'string', example: 'connected' },
+                        vault2Reading: { type: 'string', example: 'connected' },
+                        vault2bOverflow: { type: 'string', example: 'connected' },
+                        vault3Realtime: { type: 'string', example: 'connected' },
                       },
                     },
                     system: {
@@ -181,6 +184,16 @@ export const openApiSpec = {
         responses: { '200': { description: 'Franchise directors, animators, and music staff' } },
       },
     },
+    '/api/v1/series/{slug}/adaptations': {
+      get: {
+        tags: ['Master Franchises'],
+        summary: 'Source Material & Reading Adaptations',
+        parameters: [
+          { name: 'slug', in: 'path', required: true, schema: { type: 'string' } },
+        ],
+        responses: { '200': { description: 'Matched manga, manhwa, and light novel adaptations' } },
+      },
+    },
     '/api/v1/anime/{idOrSlug}': {
       get: {
         tags: ['Anime Entries'],
@@ -254,10 +267,13 @@ export const openApiSpec = {
         summary: 'Multi-Factor Faceted Query Engine',
         parameters: [
           { name: 'genre', in: 'query', schema: { type: 'string', example: 'action' } },
+          { name: 'theme', in: 'query', schema: { type: 'string', example: 'isekai' } },
+          { name: 'demographic', in: 'query', schema: { type: 'string', example: 'shounen' } },
           { name: 'year', in: 'query', schema: { type: 'integer', example: 2024 } },
           { name: 'format', in: 'query', schema: { type: 'string', example: 'TV' } },
-          { name: 'status', in: 'query', schema: { type: 'string', example: 'FINISHED' } },
-          { name: 'hasDub', in: 'query', schema: { type: 'string', example: 'Hindi' } },
+          { name: 'dub', in: 'query', schema: { type: 'string', example: 'Hindi' } },
+          { name: 'isAdult', in: 'query', schema: { type: 'boolean', example: false } },
+          { name: 'sort', in: 'query', schema: { type: 'string', enum: ['score', 'popularity', 'newest'] } },
           { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
           { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
         ],
@@ -299,6 +315,12 @@ export const openApiSpec = {
             in: 'query',
             required: false,
             schema: { type: 'string', enum: ['trending', 'popular', 'rated', 'movies', 'airing', 'upcoming'], default: 'trending' },
+          },
+          {
+            name: 'isAdult',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', enum: ['false', 'true', 'all'], default: 'false' },
           },
           { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
         ],
@@ -380,6 +402,106 @@ export const openApiSpec = {
           { name: 'q', in: 'query', required: true, schema: { type: 'string', example: 'titan' } },
         ],
         responses: { '200': { description: 'Search results' } },
+      },
+    },
+    '/api/v1/search/suggest': {
+      get: {
+        tags: ['Discovery & Search'],
+        summary: 'Fast Autocomplete Search Suggestions',
+        parameters: [
+          { name: 'q', in: 'query', required: true, schema: { type: 'string', example: 'frieren' } },
+        ],
+        responses: { '200': { description: 'Autocomplete suggestion pills' } },
+      },
+    },
+    '/api/v1/manga': {
+      get: {
+        tags: ['Print Media (Manga & Novels)'],
+        summary: 'Search & Filter Manga, Manhwa, Manhua & Light Novels',
+        parameters: [
+          { name: 'q', in: 'query', schema: { type: 'string', example: 'solo leveling' } },
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['MANGA', 'MANHWA', 'MANHUA', 'LIGHT_NOVEL', 'WEB_NOVEL', 'ONE_SHOT'] } },
+          { name: 'isAdult', in: 'query', schema: { type: 'string', enum: ['false', 'true', 'all'], default: 'false' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+        ],
+        responses: { '200': { description: 'Reading catalog entries with pagination metadata' } },
+      },
+    },
+    '/api/v1/manga/top': {
+      get: {
+        tags: ['Print Media (Manga & Novels)'],
+        summary: 'Curated Top Manga, Manhwa & Novels',
+        parameters: [
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['popular', 'rated', 'manhwa', 'novels'], default: 'popular' } },
+          { name: 'isAdult', in: 'query', schema: { type: 'string', enum: ['false', 'true', 'all'], default: 'false' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
+        ],
+        responses: { '200': { description: 'Ranked reading catalog titles' } },
+      },
+    },
+    '/api/v1/manga/manhwa': {
+      get: {
+        tags: ['Print Media (Manga & Novels)'],
+        summary: 'Top Korean Webtoons & Manhwa',
+        parameters: [
+          { name: 'isAdult', in: 'query', schema: { type: 'string', enum: ['false', 'true', 'all'], default: 'false' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 } },
+        ],
+        responses: { '200': { description: 'Top Korean Manhwa titles' } },
+      },
+    },
+    '/api/v1/manga/types': {
+      get: {
+        tags: ['Print Media (Manga & Novels)'],
+        summary: 'Category Counts across Reading Archives',
+        parameters: [
+          { name: 'isAdult', in: 'query', schema: { type: 'string', enum: ['false', 'true', 'all'], default: 'all' } },
+        ],
+        responses: { '200': { description: 'Category counts breakdown' } },
+      },
+    },
+    '/api/v1/manga/{idOrSlug}': {
+      get: {
+        tags: ['Print Media (Manga & Novels)'],
+        summary: 'Manga / Manhwa / Novel Dossier',
+        parameters: [
+          { name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string', example: 'solo-leveling' } },
+        ],
+        responses: { '200': { description: 'Full print media entry' } },
+      },
+    },
+    '/api/v1/manga/{idOrSlug}/adaptations': {
+      get: {
+        tags: ['Print Media (Manga & Novels)'],
+        summary: 'Linked Anime Adaptations & Spinoffs',
+        parameters: [
+          { name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string', example: 'solo-leveling' } },
+        ],
+        responses: { '200': { description: 'Cross-media adaptation links' } },
+      },
+    },
+    '/api/v1/manga/{idOrSlug}/characters': {
+      get: {
+        tags: ['Print Media (Manga & Novels)'],
+        summary: 'Characters in Manga / Novel',
+        parameters: [
+          { name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string', example: 'solo-leveling' } },
+        ],
+        responses: { '200': { description: 'Characters appearing in work' } },
+      },
+    },
+    '/api/v1/manga/{idOrSlug}/chapters': {
+      get: {
+        tags: ['Print Media (Manga & Novels)'],
+        summary: 'Live Chapters & Official Legal Sources',
+        parameters: [
+          { name: 'idOrSlug', in: 'path', required: true, schema: { type: 'string', example: 'solo-leveling' } },
+          { name: 'language', in: 'query', schema: { type: 'string', default: 'en' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 50 } },
+          { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+        ],
+        responses: { '200': { description: 'Chapter feed and licensing URLs' } },
       },
     },
   },

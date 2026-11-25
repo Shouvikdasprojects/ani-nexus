@@ -27,7 +27,9 @@ jobs:
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_PRIMARY_URI: ${{ secrets.MONGODB_PRIMARY_URI || secrets.MONGODB_URI }}
+          MONGODB_VAULT1B_URI: ${{ secrets.MONGODB_VAULT1B_URI }}
           MONGODB_OVERFLOW_URI: ${{ secrets.MONGODB_OVERFLOW_URI }}
+          MONGODB_VAULT2B_URI: ${{ secrets.MONGODB_VAULT2B_URI }}
           MONGODB_REALTIME_URI: ${{ secrets.MONGODB_REALTIME_URI || secrets.MONGODB_URI }}
           MEDIA_API_KEY: ${{ secrets.MEDIA_API_KEY || secrets.TMDB_API_KEY }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}

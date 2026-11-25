@@ -205,20 +205,12 @@ export const MangaSchema = new Schema<IManga>(
       officialReadingUrl: { type: String },
       publishers: [{ type: String }],
     },
-    isAdult: { type: Boolean, default: false },
+    isAdult: { type: Boolean, default: false, index: true },
   },
   {
     timestamps: true,
   }
 );
-
-// Search indexes
-MangaSchema.index({
-  'titles.primary': 'text',
-  'titles.english': 'text',
-  'titles.romaji': 'text',
-  'titles.synonyms': 'text',
-});
 
 MangaSchema.index({ type: 1, 'scores.weightedAverage': -1 });
 MangaSchema.index({ type: 1, 'scores.popularity': -1 });

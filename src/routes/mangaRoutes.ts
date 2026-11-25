@@ -1,15 +1,31 @@
 import { Router, Request, Response } from 'express';
 import { getAllMangaModels } from '../config/database.js';
-import { findOneAcrossVaults, findMergedAcrossVaults, countAcrossVaults } from '../utils/vaultQuery.js';
+import { escapeRegex, findOneAcrossVaults, findMergedAcrossVaults, countAcrossVaults } from '../utils/vaultQuery.js';
 import { mangaBuilder } from '../services/mangaBuilder.js';
 import { mangadexService } from '../services/mangadexService.js';
 
 export const mangaRouter = Router();
 
 /**
+ * Applies MAL / AniList style adult filtering:
+ * - isAdult=all  -> returns both SFW and 18+ titles
+ * - isAdult=true -> returns strictly 18+ titles
+ * - default / false -> excludes explicit 18+ (SFW default)
+ */
+function applyMangaAdultFilter(filter: any, isAdultParam: any) {
+  const mode = String(isAdultParam ?? 'false').toLowerCase();
+  if (mode === 'all') return;
+  if (mode === 'true') {
+    filter.isAdult = true;
+  } else {
+    filter.isAdult = { $ne: true };
+  }
+}
+
+/**
  * GET /api/v1/manga
  * Omni-search & Filter across Vault 2 & Vault 2B spillover
- * Query params: ?q=name &type=MANGA|MANHWA|MANHUA|LIGHT_NOVEL &status=RELEASING|FINISHED &genre=action &limit=20 &page=1
+ * Query params: ?q=name &type=MANGA|MANHWA|MANHUA|LIGHT_NOVEL &status=RELEASING|FINISHED &genre=action &isAdult=false|true|all &limit=20 &page=1
  */
 mangaRouter.get('/', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -25,12 +41,13 @@ mangaRouter.get('/', async (req: Request, res: Response): Promise<void> => {
     const filter: any = {};
 
     if (q) {
+      const safeRegex = new RegExp(escapeRegex(q), 'i');
       filter.$or = [
-        { 'titles.primary': new RegExp(q, 'i') },
-        { 'titles.english': new RegExp(q, 'i') },
-        { 'titles.romaji': new RegExp(q, 'i') },
-        { 'titles.native': new RegExp(q, 'i') },
-        { slug: new RegExp(q, 'i') },
+        { 'titles.primary': safeRegex },
+        { 'titles.english': safeRegex },
+        { 'titles.romaji': safeRegex },
+        { 'titles.native': safeRegex },
+        { slug: safeRegex },
       ];
     }
 
@@ -47,8 +64,10 @@ mangaRouter.get('/', async (req: Request, res: Response): Promise<void> => {
     }
 
     if (genre) {
-      filter['genres.slug'] = new RegExp(genre, 'i');
+      filter['genres.slug'] = new RegExp(escapeRegex(genre), 'i');
     }
+
+    applyMangaAdultFilter(filter, req.query.isAdult);
 
     const { total, results: items } = await findMergedAcrossVaults(getAllMangaModels(), {
       filter,
@@ -76,7 +95,7 @@ mangaRouter.get('/', async (req: Request, res: Response): Promise<void> => {
 /**
  * GET /api/v1/manga/top
  * Curated Top Manga, Manhwa & Light Novels across Vault 2 & Vault 2B
- * Query params: ?type=popular | rated | manhwa | novels
+ * Query params: ?type=popular | rated | manhwa | novels &isAdult=false|true|all
  */
 mangaRouter.get('/top', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -89,6 +108,7 @@ mangaRouter.get('/top', async (req: Request, res: Response): Promise<void> => {
     switch (type) {
       case 'rated':
         filter['scores.weightedAverage'] = { $gt: 0 };
+        filter['scores.popularity'] = { $gte: 5000 }; // Exclude obscure low-count outliers from top rankings
         sortObj = { 'scores.weightedAverage': -1, 'scores.popularity': -1 };
         break;
 
@@ -107,6 +127,8 @@ mangaRouter.get('/top', async (req: Request, res: Response): Promise<void> => {
         sortObj = { 'scores.popularity': -1, 'scores.weightedAverage': -1 };
         break;
     }
+
+    applyMangaAdultFilter(filter, req.query.isAdult);
 
     const { results: items } = await findMergedAcrossVaults(getAllMangaModels(), {
       filter,
@@ -131,16 +153,20 @@ mangaRouter.get('/top', async (req: Request, res: Response): Promise<void> => {
  * GET /api/v1/manga/types
  * Category breakdowns with active counts across Vault 2 & Vault 2B
  */
-mangaRouter.get('/types', async (_req: Request, res: Response): Promise<void> => {
+mangaRouter.get('/types', async (req: Request, res: Response): Promise<void> => {
   try {
     const mangaModels = getAllMangaModels();
     const types = ['MANGA', 'MANHWA', 'MANHUA', 'LIGHT_NOVEL', 'WEB_NOVEL', 'ONE_SHOT'];
 
     const counts = await Promise.all(
-      types.map(async (t) => ({
-        type: t,
-        count: await countAcrossVaults(mangaModels, { type: t }),
-      }))
+      types.map(async (t) => {
+        const f: any = { type: t };
+        applyMangaAdultFilter(f, req.query.isAdult ?? 'all');
+        return {
+          type: t,
+          count: await countAcrossVaults(mangaModels, f),
+        };
+      })
     );
 
     res.json({
@@ -159,8 +185,10 @@ mangaRouter.get('/types', async (_req: Request, res: Response): Promise<void> =>
 mangaRouter.get('/manhwa', async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = Math.min(Number(req.query.limit) || 20, 50);
+    const filter: any = { type: 'MANHWA' };
+    applyMangaAdultFilter(filter, req.query.isAdult);
     const { results: items } = await findMergedAcrossVaults(getAllMangaModels(), {
-      filter: { type: 'MANHWA' },
+      filter,
       sort: { 'scores.popularity': -1, 'scores.weightedAverage': -1 },
       skip: 0,
       limit,

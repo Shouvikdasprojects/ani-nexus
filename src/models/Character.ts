@@ -56,10 +56,10 @@ export interface ICharacter extends Document {
 export const CharacterSchema = new Schema<ICharacter>(
   {
     characterId: { type: Number, required: true, unique: true, index: true },
-    malId: { type: Number, default: null, index: true },
+    malId: { type: Number, default: null },
     slug: { type: String, required: true, index: true },
     name: {
-      full: { type: String, required: true, index: true },
+      full: { type: String, required: true },
       native: { type: String, default: null },
       alternative: [{ type: String }],
       alternativeSpoiler: [{ type: String }],
@@ -93,7 +93,7 @@ export const CharacterSchema = new Schema<ICharacter>(
           full: { type: String, required: true },
           native: { type: String, default: null },
         },
-        language: { type: String, required: true, index: true },
+        language: { type: String, required: true },
         image: { type: String, default: null },
         homeTown: { type: String, default: null },
         birthday: { type: String, default: null },
@@ -122,7 +122,7 @@ export const CharacterSchema = new Schema<ICharacter>(
   }
 );
 
-// Search index for fast character lookups
-CharacterSchema.index({ 'name.full': 'text', 'name.native': 'text', 'name.alternative': 'text' });
+// Sparse partial index for non-null malId lookups (saves space when malId is null)
+CharacterSchema.index({ malId: 1 }, { partialFilterExpression: { malId: { $gt: 0 } } });
 
 export const Character = mongoose.model<ICharacter>('Character', CharacterSchema);

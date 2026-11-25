@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Genre } from '../models/Genre.js';
 import { getAllFranchiseModels } from '../config/database.js';
-import { findMergedAcrossVaults } from '../utils/vaultQuery.js';
+import { escapeRegex, findMergedAcrossVaults } from '../utils/vaultQuery.js';
 
 export const genreRouter = Router();
 export const filterRouter = Router();
@@ -83,7 +83,7 @@ export async function handleAnimeFilter(req: Request, res: Response): Promise<vo
       mongoQuery['timeline.format'] = String(format).toUpperCase();
     }
     if (dub) {
-      mongoQuery['timeline.languages.audioDubs'] = new RegExp(`^${dub}$`, 'i');
+      mongoQuery['timeline.languages.audioDubs'] = new RegExp(`^${escapeRegex(String(dub))}$`, 'i');
     }
     if (isAdult !== undefined) {
       mongoQuery['contentRating.isAdult'] = isAdult === 'true';

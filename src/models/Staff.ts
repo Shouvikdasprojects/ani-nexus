@@ -52,10 +52,10 @@ export interface IStaff extends Document {
 export const StaffSchema = new Schema<IStaff>(
   {
     staffId: { type: Number, required: true, unique: true, index: true },
-    malId: { type: Number, default: null, index: true },
+    malId: { type: Number, default: null },
     slug: { type: String, required: true, index: true },
     name: {
-      full: { type: String, required: true, index: true },
+      full: { type: String, required: true },
       native: { type: String, default: null },
       alternative: [{ type: String }],
     },
@@ -103,7 +103,7 @@ export const StaffSchema = new Schema<IStaff>(
   }
 );
 
-// Search index for fast staff/voice actor lookups
-StaffSchema.index({ 'name.full': 'text', 'name.native': 'text', 'name.alternative': 'text' });
+// Sparse partial index for non-null malId lookups (saves space when malId is null)
+StaffSchema.index({ malId: 1 }, { partialFilterExpression: { malId: { $gt: 0 } } });
 
 export const Staff = mongoose.model<IStaff>('Staff', StaffSchema);
