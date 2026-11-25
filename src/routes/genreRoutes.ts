@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { Franchise } from '../models/Franchise.js';
 import { Genre } from '../models/Genre.js';
-import { getSecondaryFranchiseModel } from '../config/database.js';
+import { getAllFranchiseModels } from '../config/database.js';
+import { findMergedAcrossVaults } from '../utils/vaultQuery.js';
 
 export const genreRouter = Router();
 export const filterRouter = Router();
@@ -96,25 +96,9 @@ export async function handleAnimeFilter(req: Request, res: Response): Promise<vo
       sortObj = { 'timeline.year': -1 };
     }
 
-    const SecModel = getSecondaryFranchiseModel();
-    let targetModel: any = Franchise;
-    if (SecModel) {
-      try {
-        const [secCount, priCount] = await Promise.all([
-          SecModel.countDocuments(mongoQuery),
-          Franchise.countDocuments(mongoQuery),
-        ]);
-        if (secCount > priCount) {
-          targetModel = SecModel;
-        }
-      } catch {
-        targetModel = Franchise;
-      }
-    }
-
-    const [total, results] = await Promise.all([
-      targetModel.countDocuments(mongoQuery),
-      targetModel.find(mongoQuery, {
+    const { total, results } = await findMergedAcrossVaults(getAllFranchiseModels(), {
+      filter: mongoQuery,
+      projection: {
         titles: 1,
         slug: 1,
         images: 1,
@@ -124,12 +108,12 @@ export async function handleAnimeFilter(req: Request, res: Response): Promise<vo
         'timeline.languages': 1,
         'timeline.year': 1,
         totalEpisodes: 1,
-      })
-        .sort(sortObj)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-    ]);
+      },
+      sort: sortObj,
+      skip,
+      limit,
+      dedupeKey: 'slug',
+    });
 
     res.json({
       success: true,
@@ -176,7 +160,7 @@ filterRouter.get('/', handleAnimeFilter);
 
 /**
  * GET /api/v1/genres/:slug
- * Retrieve franchises belonging to a specific genre
+ * Retrieve franchises belonging to a specific genre across Vault 1 & Vault 1B
  */
 genreRouter.get('/:slug', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -193,21 +177,21 @@ genreRouter.get('/:slug', async (req: Request, res: Response): Promise<void> => 
       ],
     };
 
-    const [total, franchises] = await Promise.all([
-      Franchise.countDocuments(query),
-      Franchise.find(query, {
+    const { total, results: franchises } = await findMergedAcrossVaults(getAllFranchiseModels(), {
+      filter: query,
+      projection: {
         titles: 1,
         slug: 1,
         images: 1,
         classification: 1,
         totalEpisodes: 1,
         'timeline.scores': 1,
-      })
-        .sort({ 'timeline.0.scores.combinedAverage': -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-    ]);
+      },
+      sort: { 'timeline.0.scores.combinedAverage': -1 },
+      skip,
+      limit,
+      dedupeKey: 'slug',
+    });
 
     res.json({
       success: true,

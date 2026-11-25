@@ -1,23 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { Franchise } from '../models/Franchise.js';
-import { getSecondaryFranchiseModel } from '../config/database.js';
+import { getAllFranchiseModels } from '../config/database.js';
+import { findOneAcrossVaults } from '../utils/vaultQuery.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
 
 export const animeRouter = Router();
 
 async function findFranchise(query: any, projection?: any) {
-  let doc = await Franchise.findOne(query, projection).lean();
-  if (!doc) {
-    const SecondaryModel = getSecondaryFranchiseModel();
-    if (SecondaryModel) {
-      try {
-        doc = await SecondaryModel.findOne(query, projection).lean();
-      } catch (err: any) {
-        console.warn('[Secondary Vault Query Warning]:', err.message);
-      }
-    }
-  }
-  return doc;
+  return findOneAcrossVaults(getAllFranchiseModels(), query, projection);
 }
 
 /**

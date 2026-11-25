@@ -5,7 +5,16 @@ try {
 
 import fs from 'fs';
 import path from 'path';
-import { connectDatabase, getCharacterModel, getStaffModel, isPrimaryVaultFull } from '../config/database.js';
+import {
+  connectDatabase,
+  getCharacterModel,
+  getStaffModel,
+  getVault1BConnection,
+  getVaultLogicalMB,
+  getCapacityLimitMB,
+  isPrimaryVaultFull,
+  isVault1BFull,
+} from '../config/database.js';
 import { characterStaffService } from '../services/characterStaffService.js';
 import mongoose from 'mongoose';
 
@@ -298,12 +307,19 @@ async function runTurboSeeder() {
     if (iteration % 30 === 0) {
       try {
         const isFull = await isPrimaryVaultFull();
-        const primaryStats = await mongoose.connection.db?.stats();
-        const primaryMB = ((primaryStats?.storageSize || primaryStats?.dataSize || 0) / (1024 * 1024)).toFixed(2);
+        const limitMB = getCapacityLimitMB();
+        const primaryMB = (await getVaultLogicalMB(mongoose.connection)).toFixed(2);
+        const vault1bMB = (await getVaultLogicalMB(getVault1BConnection())).toFixed(2);
         const elapsedMin = ((Date.now() - startTime) / 60000).toFixed(1);
         console.log(
-          `\n📈 [TELEMETRY (${elapsedMin}m)]: Vault 1: ${primaryMB} MB / 480 MB (Full: ${isFull}) | Checkpoint: Char=${currentCharId}, Staff=${currentStaffId}\n`
+          `\n📈 [TELEMETRY (${elapsedMin}m)]: Vault 1: ${primaryMB} MB / ${limitMB} MB (Spillover: ${isFull}) | Vault 1B: ${vault1bMB} MB / 512 MB | Checkpoint: Char=${currentCharId}, Staff=${currentStaffId}\n`
         );
+
+        if (isFull && (await isVault1BFull())) {
+          console.warn(`🛑 [Safety Auto-Pause]: Both Vault 1 and Vault 1B reached >= ${limitMB} MB. Saving checkpoint and stopping cleanly before 512 MB Atlas limit!`);
+          saveCheckpoint(checkpoint);
+          break;
+        }
       } catch {}
     }
   }

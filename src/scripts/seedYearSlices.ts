@@ -1,4 +1,14 @@
-import { connectDatabase, getMangaModel, getVault2BMangaModel } from '../config/database.js';
+import {
+  connectDatabase,
+  getAllMangaModels,
+  getSecondaryConnection,
+  getVault2BConnection,
+  getVaultLogicalMB,
+  getCapacityLimitMB,
+  isVault2Full,
+  isVault2BFull,
+} from '../config/database.js';
+import { findOneAcrossVaults, countAcrossVaults } from '../utils/vaultQuery.js';
 import { anilistService } from '../services/anilistService.js';
 import { mangaBuilder } from '../services/mangaBuilder.js';
 import mongoose from 'mongoose';
@@ -7,7 +17,7 @@ async function seedYearSlices() {
   console.log('🚀 Starting AniNexus Deep-History Year-Slice Manga Seeder...');
   await connectDatabase();
 
-  const MangaModel = getMangaModel();
+  const mangaModels = getAllMangaModels();
 
   // CLI Arguments
   let startYear = 2026;
@@ -22,8 +32,8 @@ async function seedYearSlices() {
     }
   }
 
-  const initialCount = await MangaModel.countDocuments();
-  console.log(`📚 Initial Vault 2 Catalog: ${initialCount} titles already stored.`);
+  const initialCount = await countAcrossVaults(mangaModels);
+  console.log(`📚 Initial Reading Catalog (Vault 2 + Vault 2B): ${initialCount} titles already stored.`);
   console.log(`🎯 Target Range: Years ${startYear} down to ${endYear} (Deep-Archive Sweep)`);
 
   const perPage = 50;
@@ -67,29 +77,21 @@ async function seedYearSlices() {
         totalProcessed++;
         const itemTitle = item.title?.english || item.title?.romaji || item.title?.userPreferred || `ID:${item.id}`;
 
-        // 1. Resilient DB existence check
+        // 1. Resilient DB existence check across Vault 2 & Vault 2B
         let existing: any = null;
         let dbRetry = 0;
         while (dbRetry < 5) {
           try {
-            existing = await MangaModel.findOne({
-              $or: [
-                { 'ids.aniId': item.id },
-                ...(item.idMal ? [{ 'ids.malId': item.idMal }] : []),
-              ],
-            }).select('titles slug type');
-
-            if (!existing) {
-              const Vault2BManga = getVault2BMangaModel();
-              if (Vault2BManga) {
-                existing = await Vault2BManga.findOne({
-                  $or: [
-                    { 'ids.aniId': item.id },
-                    ...(item.idMal ? [{ 'ids.malId': item.idMal }] : []),
-                  ],
-                }).select('titles slug type');
-              }
-            }
+            existing = await findOneAcrossVaults(
+              mangaModels,
+              {
+                $or: [
+                  { 'ids.aniId': item.id },
+                  ...(item.idMal ? [{ 'ids.malId': item.idMal }] : []),
+                ],
+              },
+              { titles: 1, slug: 1, type: 1 }
+            );
             break;
           } catch (netErr: any) {
             dbRetry++;
@@ -100,11 +102,11 @@ async function seedYearSlices() {
 
         if (existing) {
           skippedExisting++;
-          console.log(`[${year} | P${page}] ⏩ [Already in Vault 2] '${existing.titles.primary}' [${existing.type}]`);
+          console.log(`[${year} | P${page}] ⏩ [Already in Vault 2/2B] '${existing.titles.primary}' [${existing.type}]`);
           continue;
         }
 
-        // 2. Fetch & Ingest full details into Vault 2
+        // 2. Fetch & Ingest full details into Vault 2 / 2B
         const startTime = Date.now();
         let ingestSuccess = false;
         let ingestRetries = 0;
@@ -138,11 +140,22 @@ async function seedYearSlices() {
         // Rate limiter compliance buffer
         await new Promise((r) => setTimeout(r, 850));
 
-        // Periodic Milestone Report every 50 items
+        // Periodic Milestone Report & Storage Safety Check every 50 items
         if (totalProcessed % 50 === 0) {
           try {
-            const currentTotal = await MangaModel.countDocuments();
-            console.log(`\n📊 --- [Year Milestone] Processed: ${totalProcessed} | New: ${newlyIngested} | Skipped: ${skippedExisting} | Vault 2 Total: ${currentTotal} titles ---\n`);
+            const currentTotal = await countAcrossVaults(mangaModels);
+            const v2MB = (await getVaultLogicalMB(getSecondaryConnection())).toFixed(2);
+            const v2bMB = (await getVaultLogicalMB(getVault2BConnection())).toFixed(2);
+            const limitMB = getCapacityLimitMB();
+            const v2Full = await isVault2Full();
+            console.log(`\n📊 --- [Year ${year} Milestone] Processed: ${totalProcessed} | New: ${newlyIngested} | Total (V2+2B): ${currentTotal} | Vault 2: ${v2MB}/${limitMB}MB (Spillover: ${v2Full}) | Vault 2B: ${v2bMB}/512MB ---\n`);
+
+            if (v2Full && (await isVault2BFull())) {
+              console.warn(`🛑 [Safety Auto-Pause]: Both Vault 2 and Vault 2B reached >= ${limitMB} MB. Exiting safely before 512 MB Atlas limit!`);
+              yearHasMore = false;
+              year = endYear - 1;
+              break;
+            }
           } catch {}
         }
       }
@@ -153,7 +166,7 @@ async function seedYearSlices() {
     }
   }
 
-  const finalTotal = await MangaModel.countDocuments();
+  const finalTotal = await countAcrossVaults(mangaModels);
 
   console.log(`\n======================================================`);
   console.log(`🎉 Year-Slice Historical Seeding Complete!`);

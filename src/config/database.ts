@@ -31,11 +31,26 @@ let Vault2BManga: Model<IManga> | null = null;
 let RealtimeNews: Model<INews> | null = null;
 let RealtimeSchedule: Model<IScheduleSnapshot> | null = null;
 
-// Storage Capacity Monitor for Vault 1 (Primary: aninexusapidb2)
+// Storage Capacity Monitor for Vaults (Atlas M0 calculates Data Size + Index Size against 512MB)
 let isPrimaryFull = false;
 let lastStorageCheck = 0;
 const STORAGE_CHECK_INTERVAL = 60 * 1000; // 1 minute interval for responsive rolling
-const PRIMARY_CAPACITY_LIMIT_MB = 455; // 455MB threshold (57MB safety cushion below 512MB limit)
+const PRIMARY_CAPACITY_LIMIT_MB = 450; // 450MB threshold (62MB safety cushion below 512MB limit)
+
+export function getCapacityLimitMB(): number {
+  return PRIMARY_CAPACITY_LIMIT_MB;
+}
+
+export async function getVaultLogicalMB(conn: Connection | null | undefined): Promise<number> {
+  try {
+    if (!conn?.db) return 0;
+    const stats = await conn.db.stats();
+    if (!stats) return 0;
+    return ((stats.dataSize || 0) + (stats.indexSize || 0)) / (1024 * 1024);
+  } catch {
+    return 0;
+  }
+}
 
 export async function isPrimaryVaultFull(): Promise<boolean> {
   const now = Date.now();
@@ -226,6 +241,10 @@ export function getSecondaryFranchiseModel(): Model<IFranchise> | null {
   return OverflowFranchise;
 }
 
+export function getVault1BFranchiseModel(): Model<IFranchise> | null {
+  return Vault1BFranchise;
+}
+
 export function getCharacterModel(): Model<ICharacter> {
   return Character;
 }
@@ -258,6 +277,32 @@ export function getVault2BMangaModel(): Model<IManga> | null {
   return Vault2BManga;
 }
 
+export function getAllFranchiseModels(): Model<IFranchise>[] {
+  const models: Model<IFranchise>[] = [Franchise];
+  if (Vault1BFranchise) models.push(Vault1BFranchise);
+  if (OverflowFranchise) models.push(OverflowFranchise);
+  return models;
+}
+
+export function getAllCharacterModels(): Model<ICharacter>[] {
+  const models: Model<ICharacter>[] = [Character];
+  if (Vault1BCharacter) models.push(Vault1BCharacter);
+  return models;
+}
+
+export function getAllStaffModels(): Model<IStaff>[] {
+  const models: Model<IStaff>[] = [Staff];
+  if (Vault1BStaff) models.push(Vault1BStaff);
+  return models;
+}
+
+export function getAllMangaModels(): Model<IManga>[] {
+  const primary = OverflowManga || (Manga as Model<IManga>);
+  const models: Model<IManga>[] = [primary];
+  if (Vault2BManga) models.push(Vault2BManga);
+  return models;
+}
+
 let isVault2FullFlag = false;
 let lastVault2Check = 0;
 export async function isVault2Full(): Promise<boolean> {
@@ -272,16 +317,29 @@ export async function isVault2Full(): Promise<boolean> {
         const sizeMB = ((stats.dataSize || 0) + (stats.indexSize || 0)) / (1024 * 1024);
         isVault2FullFlag = sizeMB >= PRIMARY_CAPACITY_LIMIT_MB;
         lastVault2Check = now;
+        console.log(`📊 [Storage Monitor] Vault 2 (Reading): ${sizeMB.toFixed(2)} MB / 512 MB (Capacity Full: ${isVault2FullFlag})`);
       }
     }
-  } catch {}
+  } catch (err: any) {
+    console.warn('⚠️ [Vault 2 Storage Check Warning]:', err.message);
+  }
   return isVault2FullFlag;
+}
+
+export async function isVault1BFull(): Promise<boolean> {
+  const sizeMB = await getVaultLogicalMB(vault1bConnection);
+  return sizeMB >= PRIMARY_CAPACITY_LIMIT_MB;
+}
+
+export async function isVault2BFull(): Promise<boolean> {
+  const sizeMB = await getVaultLogicalMB(vault2bConnection);
+  return sizeMB >= PRIMARY_CAPACITY_LIMIT_MB;
 }
 
 export async function getTargetMangaWriteModel(): Promise<Model<IManga>> {
   const isFull = await isVault2Full();
   if (isFull && Vault2BManga) {
-    console.log('⚠️ [Multi-Vault Routing] Vault 2 full (>=480MB). Directing save to Vault 2B (Reading Spillover)!');
+    console.log(`⚠️ [Multi-Vault Routing] Vault 2 full (>=${PRIMARY_CAPACITY_LIMIT_MB}MB). Directing save to Vault 2B (Reading Spillover)!`);
     return Vault2BManga;
   }
   return OverflowManga || (Manga as Model<IManga>);
@@ -294,7 +352,7 @@ export async function getTargetMangaWriteModel(): Promise<Model<IManga>> {
 export async function getTargetFranchiseWriteModel(): Promise<Model<IFranchise>> {
   const isFull = await isPrimaryVaultFull();
   if (isFull && Vault1BFranchise) {
-    console.log('⚠️ [Multi-Vault Routing] Vault 1 full (>=480MB). Directing save to Vault 1B (Spillover)!');
+    console.log(`⚠️ [Multi-Vault Routing] Vault 1 full (>=${PRIMARY_CAPACITY_LIMIT_MB}MB). Directing save to Vault 1B (Spillover)!`);
     return Vault1BFranchise;
   }
   return Franchise;

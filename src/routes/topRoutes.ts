@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { Franchise } from '../models/Franchise.js';
-import { getSecondaryFranchiseModel } from '../config/database.js';
+import { getAllFranchiseModels } from '../config/database.js';
+import { findMergedAcrossVaults } from '../utils/vaultQuery.js';
 
 export const topRouter = Router();
 
 /**
  * GET /api/v1/top
- * Curated Top Collections for Frontend Carousels & UI Grids
+ * Curated Top Collections across Vault 1 & Vault 1B spillover
  * Query param: ?type=trending | popular | rated | movies | airing | upcoming
  */
 topRouter.get('/', async (req: Request, res: Response): Promise<void> => {
@@ -21,30 +21,25 @@ topRouter.get('/', async (req: Request, res: Response): Promise<void> => {
 
     switch (type) {
       case 'trending':
-        // Trending: Recent popularity and high ratings on primary franchise entry
         sortObj = { 'timeline.0.scores.anilist.popularity': -1, 'timeline.0.year': -1 };
         break;
 
       case 'rated':
-        // Anime Awards & All-Time Highest Rated (MAL & AniList combined)
         mongoQuery['timeline.0.scores.combinedAverage'] = { $gt: 0 };
         sortObj = { 'timeline.0.scores.combinedAverage': -1 };
         break;
 
       case 'movies':
-        // Top Anime Movies
         mongoQuery['timeline.format'] = new RegExp('^movie$', 'i');
         sortObj = { 'timeline.0.scores.combinedAverage': -1 };
         break;
 
       case 'airing':
-        // Currently Airing Seasons
         mongoQuery['timeline.status'] = new RegExp('^releasing$', 'i');
         sortObj = { 'timeline.0.year': -1, 'timeline.0.scores.combinedAverage': -1 };
         break;
 
-      case 'upcoming':
-        // Most Anticipated Upcoming
+      case 'upcoming': {
         const currentYear = new Date().getUTCFullYear();
         mongoQuery['$or'] = [
           { 'timeline.status': new RegExp('^not_yet_released$', 'i') },
@@ -52,34 +47,18 @@ topRouter.get('/', async (req: Request, res: Response): Promise<void> => {
         ];
         sortObj = { 'timeline.0.year': 1, 'timeline.0.scores.combinedAverage': -1 };
         break;
+      }
 
       case 'popular':
       default:
-        // All-Time Most Popular: filter for rank > 0 to prevent nulls sorting first in ascending order
         mongoQuery['timeline.0.scores.mal.popularity'] = { $gt: 0 };
         sortObj = { 'timeline.0.scores.mal.popularity': 1, 'timeline.0.scores.combinedAverage': -1 };
         break;
     }
 
-    const SecModel = getSecondaryFranchiseModel();
-    let targetModel: any = Franchise;
-    if (SecModel) {
-      try {
-        const [secCount, priCount] = await Promise.all([
-          SecModel.countDocuments(mongoQuery),
-          Franchise.countDocuments(mongoQuery),
-        ]);
-        if (secCount > priCount) {
-          targetModel = SecModel;
-        }
-      } catch {
-        targetModel = Franchise;
-      }
-    }
-
-    const [total, results] = await Promise.all([
-      targetModel.countDocuments(mongoQuery),
-      targetModel.find(mongoQuery, {
+    const { total, results } = await findMergedAcrossVaults(getAllFranchiseModels(), {
+      filter: mongoQuery,
+      projection: {
         titles: 1,
         slug: 1,
         images: 1,
@@ -93,12 +72,12 @@ topRouter.get('/', async (req: Request, res: Response): Promise<void> => {
         'timeline.trailer': 1,
         totalEpisodes: 1,
         totalParts: 1,
-      })
-        .sort(sortObj)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-    ]);
+      },
+      sort: sortObj,
+      skip,
+      limit,
+      dedupeKey: 'slug',
+    });
 
     res.json({
       success: true,

@@ -1,27 +1,24 @@
 import { Router, Request, Response } from 'express';
-import { Franchise } from '../models/Franchise.js';
-import { getSecondaryFranchiseModel, getCharacterModel, getStaffModel } from '../config/database.js';
+import {
+  getAllFranchiseModels,
+  getAllCharacterModels,
+  getAllStaffModels,
+  getAllMangaModels,
+} from '../config/database.js';
+import {
+  findOneAcrossVaults,
+  findUnpaginatedMergedAcrossVaults,
+} from '../utils/vaultQuery.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
 import { malService } from '../services/malService.js';
 
 export const seriesRouter = Router();
 
 /**
- * Helper to query seamlessly across 1024MB Dual-Vault (Primary & Secondary)
+ * Helper to query seamlessly across Vault 1, Vault 1B & legacy fallback
  */
 async function findFranchise(filter: any, projection?: any) {
-  let doc = await Franchise.findOne(filter, projection).lean();
-  if (!doc) {
-    const SecondaryModel = getSecondaryFranchiseModel();
-    if (SecondaryModel) {
-      try {
-        doc = await SecondaryModel.findOne(filter, projection).lean();
-      } catch (err: any) {
-        console.warn('[Secondary Vault Query Warning]:', err.message);
-      }
-    }
-  }
-  return doc;
+  return findOneAcrossVaults(getAllFranchiseModels(), filter, projection);
 }
 
 /**
@@ -141,9 +138,9 @@ seriesRouter.get('/:slug/episodes', async (req: Request, res: Response): Promise
 
     // Collect episodes from all timeline parts
     let allEpisodes: any[] = [];
-    franchise.timeline?.forEach((part) => {
+    franchise.timeline?.forEach((part: any) => {
       if (part.episodes && Array.isArray(part.episodes)) {
-        part.episodes.forEach((ep) => {
+        part.episodes.forEach((ep: any) => {
           allEpisodes.push({
             partName: part.partName,
             ...ep,
@@ -191,15 +188,17 @@ seriesRouter.get('/:slug/staff', async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    // Attempt to query dedicated Staff collection in aninexusapidb2 for exhaustive credits
-    const StaffModel = getStaffModel();
+    // Query Staff collections across BOTH Vault 1 & Vault 1B for exhaustive credits
     const mediaIds = (franchise.timeline || []).map((t: any) => t.ids?.aniId).filter(Boolean);
-    let detailedStaff = await StaffModel.find({
-      $or: [
-        { 'roles.slug': slug },
-        { 'roles.mediaId': { $in: mediaIds } },
-      ],
-    }).lean();
+    const detailedStaff = await findUnpaginatedMergedAcrossVaults(getAllStaffModels(), {
+      filter: {
+        $or: [
+          { 'roles.slug': slug },
+          { 'roles.mediaId': { $in: mediaIds } },
+        ],
+      },
+      dedupeKey: 'staffId',
+    });
 
     const staffList = detailedStaff.length > 0 ? detailedStaff : (franchise.staff || []);
 
@@ -238,15 +237,18 @@ seriesRouter.get('/:slug/characters', async (req: Request, res: Response): Promi
       return;
     }
 
-    // Attempt to query dedicated Character collection in aninexusapidb2 for exhaustive cast
-    const CharacterModel = getCharacterModel();
+    // Query Character collections across BOTH Vault 1 & Vault 1B for exhaustive cast
     const mediaIds = (franchise.timeline || []).map((t: any) => t.ids?.aniId).filter(Boolean);
-    let detailedChars = await CharacterModel.find({
-      $or: [
-        { 'animeAppearances.slug': slug },
-        { 'animeAppearances.mediaId': { $in: mediaIds } },
-      ],
-    }).sort({ favourites: -1 }).lean();
+    const detailedChars = await findUnpaginatedMergedAcrossVaults(getAllCharacterModels(), {
+      filter: {
+        $or: [
+          { 'animeAppearances.slug': slug },
+          { 'animeAppearances.mediaId': { $in: mediaIds } },
+        ],
+      },
+      sort: { favourites: -1 },
+      dedupeKey: 'characterId',
+    });
 
     const charList = detailedChars.length > 0 ? detailedChars : (franchise.mainCharacters || []);
 
@@ -284,17 +286,17 @@ seriesRouter.get('/:slug/adaptations', async (req: Request, res: Response): Prom
       return;
     }
 
-    const { getMangaModel } = await import('../config/database.js');
-    const MangaModel = getMangaModel();
-
-    // Query Vault 2 for matching manga/novel by slug or adaptation link
-    const matchingManga = await MangaModel.find({
-      $or: [
-        { slug },
-        { 'adaptations.slug': slug },
-        { 'titles.primary': new RegExp(franchise.titles?.primary || '', 'i') },
-      ],
-    }).lean();
+    // Query Vault 2 & Vault 2B for matching manga/novel by slug or adaptation link
+    const matchingManga = await findUnpaginatedMergedAcrossVaults(getAllMangaModels(), {
+      filter: {
+        $or: [
+          { slug },
+          { 'adaptations.slug': slug },
+          { 'titles.primary': new RegExp(franchise.titles?.primary || '', 'i') },
+        ],
+      },
+      dedupeKey: 'slug',
+    });
 
     res.json({
       success: true,

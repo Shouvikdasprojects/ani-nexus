@@ -1,14 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { Franchise } from '../models/Franchise.js';
-import { getSecondaryFranchiseModel } from '../config/database.js';
+import { getAllFranchiseModels } from '../config/database.js';
+import { existsAcrossVaults, findMergedAcrossVaults } from '../utils/vaultQuery.js';
 import { anilistService } from '../services/anilistService.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
 
 export const seasonRouter = Router();
-
-function getTargetModel(): any {
-  return getSecondaryFranchiseModel() || Franchise;
-}
 
 type AnimeSeason = 'WINTER' | 'SPRING' | 'SUMMER' | 'FALL';
 
@@ -31,7 +27,7 @@ function getCurrentSeasonDetails(): { season: AnimeSeason; year: number } {
 
 /**
  * GET /api/v1/seasons/now
- * Currently airing anime for the active season
+ * Currently airing anime for the active season across Vault 1 & Vault 1B
  */
 seasonRouter.get('/now', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -40,7 +36,7 @@ seasonRouter.get('/now', async (req: Request, res: Response): Promise<void> => {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const skip = (page - 1) * limit;
 
-    // 1. Check local MongoDB Atlas with precise array element matching
+    // 1. Check local MongoDB Atlas across Vault 1 + Vault 1B
     const query = {
       timeline: {
         $elemMatch: {
@@ -50,10 +46,10 @@ seasonRouter.get('/now', async (req: Request, res: Response): Promise<void> => {
       },
     };
 
-    const targetModel = getTargetModel();
-    let [total, results] = await Promise.all([
-      targetModel.countDocuments(query),
-      targetModel.find(query, {
+    const franchiseModels = getAllFranchiseModels();
+    const { total, results } = await findMergedAcrossVaults(franchiseModels, {
+      filter: query,
+      projection: {
         titles: 1,
         slug: 1,
         images: 1,
@@ -65,12 +61,12 @@ seasonRouter.get('/now', async (req: Request, res: Response): Promise<void> => {
         'timeline.format': 1,
         'timeline.status': 1,
         totalEpisodes: 1,
-      })
-        .sort({ 'timeline.0.scores.combinedAverage': -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-    ]);
+      },
+      sort: { 'timeline.0.scores.combinedAverage': -1 },
+      skip,
+      limit,
+      dedupeKey: 'slug',
+    });
 
     // 2. Non-blocking asynchronous background ingestion if few entries in database
     if (total < 5) {
@@ -96,7 +92,7 @@ seasonRouter.get('/now', async (req: Request, res: Response): Promise<void> => {
           const list = aniRes?.Page?.media || [];
           for (const item of list) {
             if (item.idMal) {
-              const alreadyExists = await Franchise.exists({ 'timeline.ids.malId': item.idMal });
+              const alreadyExists = await existsAcrossVaults(franchiseModels, { 'timeline.ids.malId': item.idMal });
               if (!alreadyExists) {
                 await franchiseBuilder.buildFromMalId(item.idMal);
               }
@@ -141,10 +137,9 @@ seasonRouter.get('/upcoming', async (req: Request, res: Response): Promise<void>
       ],
     };
 
-    const targetModel = getTargetModel();
-    const [total, results] = await Promise.all([
-      targetModel.countDocuments(query),
-      targetModel.find(query, {
+    const { total, results } = await findMergedAcrossVaults(getAllFranchiseModels(), {
+      filter: query,
+      projection: {
         titles: 1,
         slug: 1,
         images: 1,
@@ -157,12 +152,12 @@ seasonRouter.get('/upcoming', async (req: Request, res: Response): Promise<void>
         'timeline.status': 1,
         'timeline.trailer': 1,
         totalEpisodes: 1,
-      })
-        .sort({ 'timeline.year': 1, 'timeline.0.scores.combinedAverage': -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-    ]);
+      },
+      sort: { 'timeline.year': 1, 'timeline.0.scores.combinedAverage': -1 },
+      skip,
+      limit,
+      dedupeKey: 'slug',
+    });
 
     res.json({
       success: true,
@@ -202,7 +197,7 @@ seasonRouter.get('/:year/:season', async (req: Request, res: Response): Promise<
     const formatFilter = req.query.format ? String(req.query.format).toUpperCase() : undefined;
     const forceLive = req.query.live === 'true';
 
-    // 1. Check local MongoDB Atlas
+    // 1. Check local MongoDB Atlas across Vault 1 & Vault 1B
     const query: Record<string, any> = {
       'timeline.year': year,
     };
@@ -210,10 +205,10 @@ seasonRouter.get('/:year/:season', async (req: Request, res: Response): Promise<
       query['timeline.format'] = formatFilter;
     }
 
-    const targetModel = getTargetModel();
-    const [dbTotal, dbResults] = await Promise.all([
-      targetModel.countDocuments(query),
-      targetModel.find(query, {
+    const franchiseModels = getAllFranchiseModels();
+    const { total: dbTotal, results: dbResults } = await findMergedAcrossVaults(franchiseModels, {
+      filter: query,
+      projection: {
         titles: 1,
         slug: 1,
         images: 1,
@@ -227,12 +222,12 @@ seasonRouter.get('/:year/:season', async (req: Request, res: Response): Promise<
         'timeline.status': 1,
         'timeline.trailer': 1,
         totalEpisodes: 1,
-      })
-        .sort({ 'timeline.0.scores.combinedAverage': -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean(),
-    ]);
+      },
+      sort: { 'timeline.0.scores.combinedAverage': -1 },
+      skip: (page - 1) * limit,
+      limit,
+      dedupeKey: 'slug',
+    });
 
     // 2. If DB has sufficient data and live not forced, return cached MongoDB data
     if (dbTotal >= 5 && !forceLive) {
@@ -321,7 +316,7 @@ seasonRouter.get('/:year/:season', async (req: Request, res: Response): Promise<
         const topToIngest = liveData.media.slice(0, 3);
         for (const item of topToIngest) {
           if (item.idMal) {
-            const exists = await Franchise.exists({ 'timeline.ids.malId': item.idMal });
+            const exists = await existsAcrossVaults(franchiseModels, { 'timeline.ids.malId': item.idMal });
             if (!exists) {
               await franchiseBuilder.buildFromMalId(item.idMal);
             }

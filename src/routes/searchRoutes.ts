@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { Franchise } from '../models/Franchise.js';
-import { getSecondaryFranchiseModel } from '../config/database.js';
+import { getAllFranchiseModels } from '../config/database.js';
+import { findMergedAcrossVaults } from '../utils/vaultQuery.js';
 import { malService } from '../services/malService.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
 
@@ -9,7 +9,7 @@ export const searchRouter = Router();
 /**
  * GET /api/v1/search?q=...
  * Typo-tolerant, multi-tier search across English, Romaji, and Native Kanji.
- * Auto-ingests from external sources if not present in local database!
+ * Searches across Vault 1 & Vault 1B spillover seamlessly!
  */
 searchRouter.get('/', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -20,30 +20,33 @@ searchRouter.get('/', async (req: Request, res: Response): Promise<void> => {
     }
 
     const limit = Math.min(Number(req.query.limit) || 20, 50);
+    const franchiseModels = getAllFranchiseModels();
+    const projection = {
+      titles: 1,
+      slug: 1,
+      images: 1,
+      classification: 1,
+      contentRating: 1,
+      'timeline.scores': 1,
+      'timeline.languages': 1,
+      'timeline.year': 1,
+      totalEpisodes: 1,
+    };
 
-    // 1. Search in local MongoDB using Full-Text Index first, then Regex fallback
+    // 1. Search across all Franchise vaults using Full-Text Index first, then Regex fallback
     let results: any[] = [];
 
     if (query.length >= 3) {
       try {
-        results = await Franchise.find(
-          { $text: { $search: query } },
-          {
-            textScore: { $meta: 'textScore' },
-            titles: 1,
-            slug: 1,
-            images: 1,
-            classification: 1,
-            contentRating: 1,
-            'timeline.scores': 1,
-            'timeline.languages': 1,
-            'timeline.year': 1,
-            totalEpisodes: 1,
-          }
-        )
-          .sort({ textScore: { $meta: 'textScore' }, 'timeline.0.scores.combinedAverage': -1 })
-          .limit(limit)
-          .lean();
+        const textRes = await findMergedAcrossVaults(franchiseModels, {
+          filter: { $text: { $search: query } },
+          projection: { ...projection, textScore: { $meta: 'textScore' } },
+          sort: { textScore: { $meta: 'textScore' }, 'timeline.0.scores.combinedAverage': -1 },
+          skip: 0,
+          limit,
+          dedupeKey: 'slug',
+        });
+        results = textRes.results;
       } catch {
         // Silent fallback to regex
       }
@@ -51,17 +54,6 @@ searchRouter.get('/', async (req: Request, res: Response): Promise<void> => {
 
     if (results.length === 0) {
       const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      const projection = {
-        titles: 1,
-        slug: 1,
-        images: 1,
-        classification: 1,
-        contentRating: 1,
-        'timeline.scores': 1,
-        'timeline.languages': 1,
-        'timeline.year': 1,
-        totalEpisodes: 1,
-      };
       const orFilter = {
         $or: [
           { 'titles.primary': regex },
@@ -73,26 +65,15 @@ searchRouter.get('/', async (req: Request, res: Response): Promise<void> => {
         ],
       };
 
-      // Search primary first
-      results = await Franchise.find(orFilter, projection)
-        .sort({ 'timeline.0.scores.combinedAverage': -1 })
-        .limit(limit)
-        .lean();
-
-      // If no primary results, search secondary vault (which holds full 634+ franchises)
-      if (results.length === 0) {
-        const SecModel = getSecondaryFranchiseModel();
-        if (SecModel) {
-          try {
-            results = await SecModel.find(orFilter, projection)
-              .sort({ 'timeline.0.scores.combinedAverage': -1 })
-              .limit(limit)
-              .lean();
-          } catch (secErr: any) {
-            console.warn('[Secondary Search Warning]:', secErr.message);
-          }
-        }
-      }
+      const regexRes = await findMergedAcrossVaults(franchiseModels, {
+        filter: orFilter,
+        projection,
+        sort: { 'timeline.0.scores.combinedAverage': -1 },
+        skip: 0,
+        limit,
+        dedupeKey: 'slug',
+      });
+      results = regexRes.results;
     }
 
     // 2. Cache-Aside Fallback: If no matches in DB, search MAL & auto-ingest top result
@@ -123,7 +104,7 @@ searchRouter.get('/', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * GET /api/v1/search/suggest?q=...
- * Fast autocomplete search suggestion pills
+ * Fast autocomplete search suggestion pills across all Franchise vaults
  */
 searchRouter.get('/suggest', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -134,8 +115,8 @@ searchRouter.get('/suggest', async (req: Request, res: Response): Promise<void> 
     }
 
     const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    const suggestions = await Franchise.find(
-      {
+    const { results: suggestions } = await findMergedAcrossVaults(getAllFranchiseModels(), {
+      filter: {
         $or: [
           { 'titles.primary': regex },
           { 'titles.english': regex },
@@ -143,17 +124,18 @@ searchRouter.get('/suggest', async (req: Request, res: Response): Promise<void> 
           { slug: regex },
         ],
       },
-      {
+      projection: {
         'titles.primary': 1,
         'titles.english': 1,
         'titles.romaji': 1,
         slug: 1,
         'images.poster': 1,
         'timeline.year': 1,
-      }
-    )
-      .limit(8)
-      .lean();
+      },
+      skip: 0,
+      limit: 8,
+      dedupeKey: 'slug',
+    });
 
     const pills = suggestions.map((s) => ({
       title: s.titles?.primary,

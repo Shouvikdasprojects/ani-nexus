@@ -594,84 +594,51 @@ export class FranchiseBuilder {
       malData.alternative_titles.synonyms.forEach((s: string) => synonymsSet.add(s));
     }
 
-    // 13. Upsert into MongoDB (Auto-spills over to Vault 2 if Primary Vault is full)
+    // 13. Upsert into Target Vault (Auto-spills over to Vault 1B when Vault 1 >= limit)
     const TargetModel = await getTargetFranchiseWriteModel();
+    const payload = {
+      slug,
+      titles: {
+        primary: primaryTitle,
+        english: englishTitle,
+        romaji: romajiTitle,
+        native: nativeTitle,
+        synonyms: Array.from(synonymsSet),
+      },
+      images: {
+        poster,
+        backdrop,
+        logo,
+      },
+      overview: aniMedia.description || malData?.synopsis || '',
+      classification: {
+        genres: genresList,
+        themes: themesList,
+        demographic: demographicObj,
+      },
+      contentRating,
+      totalParts: timeline.length,
+      totalEpisodes: timeline.reduce((acc, t) => acc + (t.episodes?.length || 0), 0) || totalEpsCount,
+      studios,
+      staff: staff.slice(0, 30),
+      mainCharacters: characters.slice(0, 30),
+      timeline,
+      lastUpdated: new Date(),
+      revalidateAfter: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days SWR
+    };
+
     const franchiseDoc = await TargetModel.findOneAndUpdate(
       { slug },
-      {
-        slug,
-        titles: {
-          primary: primaryTitle,
-          english: englishTitle,
-          romaji: romajiTitle,
-          native: nativeTitle,
-          synonyms: Array.from(synonymsSet),
-        },
-        images: {
-          poster,
-          backdrop,
-          logo,
-        },
-        overview: aniMedia.description || malData?.synopsis || '',
-        classification: {
-          genres: genresList,
-          themes: themesList,
-          demographic: demographicObj,
-        },
-        contentRating,
-        totalParts: timeline.length,
-        totalEpisodes: timeline.reduce((acc, t) => acc + (t.episodes?.length || 0), 0) || totalEpsCount,
-        studios,
-        staff: staff.slice(0, 30),
-        mainCharacters: characters.slice(0, 30),
-        timeline,
-        lastUpdated: new Date(),
-        revalidateAfter: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days SWR
-      },
+      payload,
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    // Sync seamlessly across 1024MB Dual-Vault Secondary cluster if active
-    const SecondaryModel = getSecondaryFranchiseModel();
-    if (SecondaryModel) {
-      try {
-        await SecondaryModel.findOneAndUpdate(
-          { slug },
-          {
-            slug,
-            titles: {
-              primary: primaryTitle,
-              english: englishTitle,
-              romaji: romajiTitle,
-              native: nativeTitle,
-              synonyms: Array.from(synonymsSet),
-            },
-            images: {
-              poster,
-              backdrop,
-              logo,
-            },
-            overview: aniMedia.description || malData?.synopsis || '',
-            classification: {
-              genres: genresList,
-              themes: themesList,
-              demographic: demographicObj,
-            },
-            contentRating,
-            totalParts: timeline.length,
-            totalEpisodes: timeline.reduce((acc, t) => acc + (t.episodes?.length || 0), 0) || totalEpsCount,
-            studios,
-            staff: staff.slice(0, 30),
-            mainCharacters: characters.slice(0, 30),
-            timeline,
-            lastUpdated: new Date(),
-            revalidateAfter: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
-      } catch (secErr: any) {
-        console.warn('[Secondary Vault Sync Warning]:', secErr.message);
-      }
+    // If rolled over to Vault 1B, remove any stale duplicate from Vault 1 or legacy Vault 2
+    if (TargetModel !== Franchise) {
+      await Promise.all([
+        Franchise.deleteOne({ slug }).catch(() => {}),
+        getSecondaryFranchiseModel()?.deleteOne({ slug }).catch(() => {}),
+      ]);
     }
 
     return franchiseDoc;

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { getMangaModel, getVault2BMangaModel } from '../config/database.js';
+import { getAllMangaModels } from '../config/database.js';
+import { findOneAcrossVaults, findMergedAcrossVaults, countAcrossVaults } from '../utils/vaultQuery.js';
 import { mangaBuilder } from '../services/mangaBuilder.js';
 import { mangadexService } from '../services/mangadexService.js';
 
@@ -7,12 +8,11 @@ export const mangaRouter = Router();
 
 /**
  * GET /api/v1/manga
- * Omni-search & Filter for Manga, Manhwa, Manhua, and Light Novels
+ * Omni-search & Filter across Vault 2 & Vault 2B spillover
  * Query params: ?q=name &type=MANGA|MANHWA|MANHUA|LIGHT_NOVEL &status=RELEASING|FINISHED &genre=action &limit=20 &page=1
  */
 mangaRouter.get('/', async (req: Request, res: Response): Promise<void> => {
   try {
-    const MangaModel = getMangaModel();
     const q = req.query.q ? String(req.query.q).trim() : '';
     const type = req.query.type ? String(req.query.type).toUpperCase() : '';
     const country = req.query.country ? String(req.query.country).toUpperCase() : '';
@@ -50,14 +50,13 @@ mangaRouter.get('/', async (req: Request, res: Response): Promise<void> => {
       filter['genres.slug'] = new RegExp(genre, 'i');
     }
 
-    const [items, total] = await Promise.all([
-      MangaModel.find(filter)
-        .sort({ 'scores.popularity': -1, 'scores.weightedAverage': -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      MangaModel.countDocuments(filter),
-    ]);
+    const { total, results: items } = await findMergedAcrossVaults(getAllMangaModels(), {
+      filter,
+      sort: { 'scores.popularity': -1, 'scores.weightedAverage': -1 },
+      skip,
+      limit,
+      dedupeKey: 'slug',
+    });
 
     res.json({
       success: true,
@@ -76,12 +75,11 @@ mangaRouter.get('/', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * GET /api/v1/manga/top
- * Curated Top Manga, Manhwa & Light Novels
+ * Curated Top Manga, Manhwa & Light Novels across Vault 2 & Vault 2B
  * Query params: ?type=popular | rated | manhwa | novels
  */
 mangaRouter.get('/top', async (req: Request, res: Response): Promise<void> => {
   try {
-    const MangaModel = getMangaModel();
     const type = String(req.query.type || 'popular').toLowerCase();
     const limit = Math.min(Number(req.query.limit) || 20, 50);
 
@@ -110,7 +108,13 @@ mangaRouter.get('/top', async (req: Request, res: Response): Promise<void> => {
         break;
     }
 
-    const items = await MangaModel.find(filter).sort(sortObj).limit(limit).lean();
+    const { results: items } = await findMergedAcrossVaults(getAllMangaModels(), {
+      filter,
+      sort: sortObj,
+      skip: 0,
+      limit,
+      dedupeKey: 'slug',
+    });
 
     res.json({
       success: true,
@@ -125,17 +129,17 @@ mangaRouter.get('/top', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * GET /api/v1/manga/types
- * Category breakdowns with active counts
+ * Category breakdowns with active counts across Vault 2 & Vault 2B
  */
 mangaRouter.get('/types', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const MangaModel = getMangaModel();
+    const mangaModels = getAllMangaModels();
     const types = ['MANGA', 'MANHWA', 'MANHUA', 'LIGHT_NOVEL', 'WEB_NOVEL', 'ONE_SHOT'];
 
     const counts = await Promise.all(
       types.map(async (t) => ({
         type: t,
-        count: await MangaModel.countDocuments({ type: t }),
+        count: await countAcrossVaults(mangaModels, { type: t }),
       }))
     );
 
@@ -150,16 +154,18 @@ mangaRouter.get('/types', async (_req: Request, res: Response): Promise<void> =>
 
 /**
  * GET /api/v1/manga/manhwa
- * Dedicated Korean Webtoons endpoint
+ * Dedicated Korean Webtoons endpoint across Vault 2 & Vault 2B
  */
 mangaRouter.get('/manhwa', async (req: Request, res: Response): Promise<void> => {
   try {
-    const MangaModel = getMangaModel();
     const limit = Math.min(Number(req.query.limit) || 20, 50);
-    const items = await MangaModel.find({ type: 'MANHWA' })
-      .sort({ 'scores.popularity': -1, 'scores.weightedAverage': -1 })
-      .limit(limit)
-      .lean();
+    const { results: items } = await findMergedAcrossVaults(getAllMangaModels(), {
+      filter: { type: 'MANHWA' },
+      sort: { 'scores.popularity': -1, 'scores.weightedAverage': -1 },
+      skip: 0,
+      limit,
+      dedupeKey: 'slug',
+    });
 
     res.json({
       success: true,
@@ -172,47 +178,36 @@ mangaRouter.get('/manhwa', async (req: Request, res: Response): Promise<void> =>
 });
 
 /**
+ * Shared single-manga lookup across Vault 2 & Vault 2B
+ */
+async function findMangaAcrossVaults(idOrSlug: string) {
+  const isNumeric = /^[0-9]+$/.test(idOrSlug);
+  const filter = isNumeric
+    ? { $or: [{ 'ids.aniId': parseInt(idOrSlug, 10) }, { 'ids.malId': parseInt(idOrSlug, 10) }] }
+    : { slug: idOrSlug.toLowerCase() };
+  return findOneAcrossVaults(getAllMangaModels(), filter);
+}
+
+/**
  * GET /api/v1/manga/:idOrSlug
  * Full Entry with On-Demand Dynamic Ingestion
  */
 mangaRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<void> => {
   try {
-    const MangaModel = getMangaModel();
     const param = String(req.params.idOrSlug).trim();
     const isNumeric = /^[0-9]+$/.test(param);
 
-    let doc: any = null;
+    let doc: any = await findMangaAcrossVaults(param);
 
-    const Vault2B = getVault2BMangaModel();
-
-    if (isNumeric) {
-      const numId = parseInt(param, 10);
-      doc = await MangaModel.findOne({
-        $or: [{ 'ids.aniId': numId }, { 'ids.malId': numId }],
-      }).lean();
-
-      if (!doc && Vault2B) {
-        doc = await Vault2B.findOne({
-          $or: [{ 'ids.aniId': numId }, { 'ids.malId': numId }],
-        }).lean();
-      }
-
-      if (!doc) {
-        // Dynamic on-demand ingestion
-        const built = await mangaBuilder.buildAndSaveManga({ aniId: numId });
-        if (built) doc = built.toObject ? built.toObject() : built;
-      }
-    } else {
-      doc = await MangaModel.findOne({ slug: param.toLowerCase() }).lean();
-      if (!doc && Vault2B) {
-        doc = await Vault2B.findOne({ slug: param.toLowerCase() }).lean();
-      }
+    if (!doc && isNumeric) {
+      const built = await mangaBuilder.buildAndSaveManga({ aniId: parseInt(param, 10) });
+      if (built) doc = built.toObject ? built.toObject() : built;
     }
 
     if (!doc) {
       res.status(404).json({
         success: false,
-        error: `Manga/Novel entry '${param}' not found in Vault 2.`,
+        error: `Manga/Novel entry '${param}' not found in Reading Archives (Vault 2 / 2B).`,
       });
       return;
     }
@@ -232,13 +227,8 @@ mangaRouter.get('/:idOrSlug', async (req: Request, res: Response): Promise<void>
  */
 mangaRouter.get('/:idOrSlug/adaptations', async (req: Request, res: Response): Promise<void> => {
   try {
-    const MangaModel = getMangaModel();
     const param = String(req.params.idOrSlug).trim();
-    const isNumeric = /^[0-9]+$/.test(param);
-
-    const doc = isNumeric
-      ? await MangaModel.findOne({ $or: [{ 'ids.aniId': parseInt(param, 10) }, { 'ids.malId': parseInt(param, 10) }] }).lean()
-      : await MangaModel.findOne({ slug: param.toLowerCase() }).lean();
+    const doc = await findMangaAcrossVaults(param);
 
     if (!doc) {
       res.status(404).json({ success: false, error: `Manga '${param}' not found.` });
@@ -266,13 +256,8 @@ mangaRouter.get('/:idOrSlug/adaptations', async (req: Request, res: Response): P
  */
 mangaRouter.get('/:idOrSlug/characters', async (req: Request, res: Response): Promise<void> => {
   try {
-    const MangaModel = getMangaModel();
     const param = String(req.params.idOrSlug).trim();
-    const isNumeric = /^[0-9]+$/.test(param);
-
-    const doc = isNumeric
-      ? await MangaModel.findOne({ $or: [{ 'ids.aniId': parseInt(param, 10) }, { 'ids.malId': parseInt(param, 10) }] }).lean()
-      : await MangaModel.findOne({ slug: param.toLowerCase() }).lean();
+    const doc = await findMangaAcrossVaults(param);
 
     if (!doc) {
       res.status(404).json({ success: false, error: `Manga '${param}' not found.` });
@@ -299,17 +284,13 @@ mangaRouter.get('/:idOrSlug/characters', async (req: Request, res: Response): Pr
  */
 mangaRouter.get('/:idOrSlug/chapters', async (req: Request, res: Response): Promise<void> => {
   try {
-    const MangaModel = getMangaModel();
     const param = String(req.params.idOrSlug).trim();
-    const isNumeric = /^[0-9]+$/.test(param);
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const page = Math.max(Number(req.query.page) || 1, 1);
     const offset = (page - 1) * limit;
     const language = String(req.query.language || 'en').toLowerCase();
 
-    const doc = isNumeric
-      ? await MangaModel.findOne({ $or: [{ 'ids.aniId': parseInt(param, 10) }, { 'ids.malId': parseInt(param, 10) }] }).lean()
-      : await MangaModel.findOne({ slug: param.toLowerCase() }).lean();
+    const doc = await findMangaAcrossVaults(param);
 
     if (!doc) {
       res.status(404).json({ success: false, error: `Manga '${param}' not found in Vault 2.` });

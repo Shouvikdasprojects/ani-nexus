@@ -383,12 +383,17 @@ class CharacterStaffService {
     const docData = this.prepareCharacterDoc(rawChar);
     if (!docData) return null;
 
+    const PrimaryModel = getCharacterModel();
     const TargetModel = await getTargetCharacterWriteModel();
     const doc = await TargetModel.findOneAndUpdate(
       { characterId: docData.characterId },
       docData,
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
+    if (TargetModel !== PrimaryModel) {
+      await PrimaryModel.deleteOne({ characterId: docData.characterId }).catch(() => {});
+    }
 
     return doc;
   }
@@ -398,11 +403,14 @@ class CharacterStaffService {
    */
   public async saveCharactersBulk(rawChars: any[]): Promise<number> {
     if (!rawChars || !rawChars.length) return 0;
+    const PrimaryModel = getCharacterModel();
     const TargetModel = await getTargetCharacterWriteModel();
+    const charIds: number[] = [];
     const ops = rawChars
       .map((rawChar) => {
         const doc = this.prepareCharacterDoc(rawChar);
         if (!doc || !doc.characterId) return null;
+        charIds.push(doc.characterId);
         return {
           updateOne: {
             filter: { characterId: doc.characterId },
@@ -415,6 +423,11 @@ class CharacterStaffService {
 
     if (!ops.length) return 0;
     await TargetModel.bulkWrite(ops as any, { ordered: false });
+
+    // Prevent stale duplicate records across Vault 1 and Vault 1B on rolled-over IDs
+    if (TargetModel !== PrimaryModel && charIds.length > 0) {
+      await PrimaryModel.deleteMany({ characterId: { $in: charIds } }).catch(() => {});
+    }
     return ops.length;
   }
 
@@ -518,12 +531,17 @@ class CharacterStaffService {
     const docData = this.prepareStaffDoc(rawStaff);
     if (!docData) return null;
 
+    const PrimaryModel = getStaffModel();
     const TargetModel = await getTargetStaffWriteModel();
     const doc = await TargetModel.findOneAndUpdate(
       { staffId: docData.staffId },
       docData,
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
+    if (TargetModel !== PrimaryModel) {
+      await PrimaryModel.deleteOne({ staffId: docData.staffId }).catch(() => {});
+    }
 
     return doc;
   }
@@ -533,11 +551,14 @@ class CharacterStaffService {
    */
   public async saveStaffBulk(rawStaffs: any[]): Promise<number> {
     if (!rawStaffs || !rawStaffs.length) return 0;
+    const PrimaryModel = getStaffModel();
     const TargetModel = await getTargetStaffWriteModel();
+    const staffIds: number[] = [];
     const ops = rawStaffs
       .map((rawStaff) => {
         const doc = this.prepareStaffDoc(rawStaff);
         if (!doc || !doc.staffId) return null;
+        staffIds.push(doc.staffId);
         return {
           updateOne: {
             filter: { staffId: doc.staffId },
@@ -550,6 +571,11 @@ class CharacterStaffService {
 
     if (!ops.length) return 0;
     await TargetModel.bulkWrite(ops as any, { ordered: false });
+
+    // Prevent stale duplicate records across Vault 1 and Vault 1B on rolled-over IDs
+    if (TargetModel !== PrimaryModel && staffIds.length > 0) {
+      await PrimaryModel.deleteMany({ staffId: { $in: staffIds } }).catch(() => {});
+    }
     return ops.length;
   }
 

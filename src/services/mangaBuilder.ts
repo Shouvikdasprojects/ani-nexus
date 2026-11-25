@@ -1,7 +1,8 @@
-import { getMangaModel, getTargetMangaWriteModel } from '../config/database.js';
+import { getMangaModel, getTargetMangaWriteModel, getAllMangaModels } from '../config/database.js';
 import { IManga, IMangaAdaptation, IMangaCreator, IMangaGenre, IMangaCharacterRef } from '../models/Manga.js';
 import { anilistService } from './anilistService.js';
 import { malService } from './malService.js';
+import { findOneAcrossVaults } from '../utils/vaultQuery.js';
 
 class MangaBuilder {
   public slugify(text: string): string {
@@ -32,7 +33,8 @@ class MangaBuilder {
   }
 
   public async buildAndSaveManga(idTarget: { aniId?: number; malId?: number }): Promise<IManga | null> {
-    const MangaModel = await getTargetMangaWriteModel();
+    const PrimaryMangaModel = getMangaModel();
+    const TargetModel = await getTargetMangaWriteModel();
 
     // 1. Fetch details from AniList
     const aniMedia = await anilistService.getMangaDetails(idTarget);
@@ -59,8 +61,8 @@ class MangaBuilder {
     const baseSlug = this.slugify(primaryTitle);
     let slug = baseSlug || `manga-${idTarget.aniId || idTarget.malId || Date.now()}`;
 
-    // Prevent slug collisions across different titles
-    const existingWithSlug = await MangaModel.findOne({ slug }).select('ids');
+    // Prevent slug collisions across different titles in both Vault 2 & Vault 2B
+    const existingWithSlug = await findOneAcrossVaults(getAllMangaModels(), { slug }, { ids: 1 });
     if (
       existingWithSlug &&
       existingWithSlug.ids?.aniId &&
@@ -212,12 +214,16 @@ class MangaBuilder {
       isAdult: Boolean(aniMedia?.isAdult),
     };
 
-    // 11. Upsert into Vault 2
-    const savedDoc = await MangaModel.findOneAndUpdate(
+    // 11. Upsert into Target Reading Vault (Vault 2 or Vault 2B spillover)
+    const savedDoc = await TargetModel.findOneAndUpdate(
       { slug },
       { $set: docData },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+
+    if (TargetModel !== PrimaryMangaModel) {
+      await PrimaryMangaModel.deleteOne({ slug }).catch(() => {});
+    }
 
     return savedDoc;
   }
