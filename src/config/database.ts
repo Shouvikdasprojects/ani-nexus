@@ -209,6 +209,14 @@ export function getSecondaryConnection(): Connection | null {
   return overflowConnection;
 }
 
+export function getVault1BConnection(): Connection | null {
+  return vault1bConnection;
+}
+
+export function getVault2BConnection(): Connection | null {
+  return vault2bConnection;
+}
+
 export function getRealtimeConnection(): Connection | null {
   return realtimeConnection;
 }
@@ -242,6 +250,39 @@ export function getScheduleSnapshotModel(): Model<IScheduleSnapshot> {
 }
 
 export function getMangaModel(): Model<IManga> {
+  return OverflowManga || (Manga as Model<IManga>);
+}
+
+export function getVault2BMangaModel(): Model<IManga> | null {
+  return Vault2BManga;
+}
+
+let isVault2FullFlag = false;
+let lastVault2Check = 0;
+export async function isVault2Full(): Promise<boolean> {
+  const now = Date.now();
+  if (now - lastVault2Check < STORAGE_CHECK_INTERVAL) {
+    return isVault2FullFlag;
+  }
+  try {
+    if (overflowConnection?.db) {
+      const stats = await overflowConnection.db.stats();
+      if (stats) {
+        const sizeMB = (stats.storageSize || stats.dataSize || 0) / (1024 * 1024);
+        isVault2FullFlag = sizeMB >= PRIMARY_CAPACITY_LIMIT_MB;
+        lastVault2Check = now;
+      }
+    }
+  } catch {}
+  return isVault2FullFlag;
+}
+
+export async function getTargetMangaWriteModel(): Promise<Model<IManga>> {
+  const isFull = await isVault2Full();
+  if (isFull && Vault2BManga) {
+    console.log('⚠️ [Multi-Vault Routing] Vault 2 full (>=480MB). Directing save to Vault 2B (Reading Spillover)!');
+    return Vault2BManga;
+  }
   return OverflowManga || (Manga as Model<IManga>);
 }
 
