@@ -111,15 +111,20 @@ async function run() {
           });
         const relations = (aniMedia.relations?.edges || [])
           .filter((e: any) => e.node)
-          .map((e: any) => ({
-            relationType: e.relationType,
-            aniId: e.node.id,
-            malId: e.node.idMal,
-            type: e.node.type,
-            format: e.node.format,
-            title: e.node.title?.english || e.node.title?.romaji,
-            coverImage: e.node.coverImage?.large,
-          }));
+          .map((e: any) => {
+            const relTitle = e.node.title?.english || e.node.title?.romaji || 'Unknown';
+            const relSlug = relTitle.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '');
+            return {
+              relationType: e.relationType,
+              id: e.node.id,
+              idMal: e.node.idMal,
+              slug: relSlug,
+              type: e.node.type,
+              format: e.node.format,
+              title: relTitle,
+              image: e.node.coverImage?.large || null,
+            };
+          });
 
         await Model.updateOne(
           { _id: doc._id },

@@ -4,6 +4,9 @@ import { findUnpaginatedMergedAcrossVaults } from '../utils/vaultQuery.js';
 
 export const studioRouter = Router();
 
+let studiosCache: { data: any[]; expiresAt: number } | null = null;
+const STUDIOS_CACHE_TTL_MS = 15 * 60 * 1000;
+
 function slugifyStudio(name: string): string {
   return name
     .toLowerCase()
@@ -21,6 +24,17 @@ function slugifyStudio(name: string): string {
  */
 studioRouter.get('/', async (_req: Request, res: Response): Promise<void> => {
   try {
+    if (studiosCache && Date.now() < studiosCache.expiresAt) {
+      res.json({
+        success: true,
+        data: {
+          studios: studiosCache.data,
+          total: studiosCache.data.length,
+        },
+      });
+      return;
+    }
+
     const franchises = await findUnpaginatedMergedAcrossVaults(getAllFranchiseModels(), {
       filter: { 'studios.0': { $exists: true } },
       projection: {
@@ -82,6 +96,8 @@ studioRouter.get('/', async (_req: Request, res: Response): Promise<void> => {
           .slice(0, 4),
       }))
       .sort((a, b) => b.animeCount - a.animeCount);
+
+    studiosCache = { data: studios, expiresAt: Date.now() + STUDIOS_CACHE_TTL_MS };
 
     res.json({
       success: true,
