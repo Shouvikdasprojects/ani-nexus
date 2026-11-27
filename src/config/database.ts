@@ -10,6 +10,7 @@ import { MangaSchema, IManga, Manga } from '../models/Manga.js';
 // Connection Handles
 let overflowConnection: Connection | null = null;
 let vault1bConnection: Connection | null = null;
+let vault1cConnection: Connection | null = null;
 let vault2bConnection: Connection | null = null;
 let realtimeConnection: Connection | null = null;
 
@@ -17,6 +18,9 @@ let realtimeConnection: Connection | null = null;
 let Vault1BFranchise: Model<IFranchise> | null = null;
 let Vault1BCharacter: Model<ICharacter> | null = null;
 let Vault1BStaff: Model<IStaff> | null = null;
+let Vault1CFranchise: Model<IFranchise> | null = null;
+let Vault1CCharacter: Model<ICharacter> | null = null;
+let Vault1CStaff: Model<IStaff> | null = null;
 
 // Vault 2: Reading Archive Models (Manga, Manhwa, Novels)
 let OverflowFranchise: Model<IFranchise> | null = null;
@@ -127,6 +131,26 @@ export async function connectDatabase(): Promise<typeof mongoose> {
       Vault1BStaff = vault1bConnection.model<IStaff>('Staff', StaffSchema);
     } catch (err: any) {
       console.warn('⚠️ Could not initialize Vault 1B (Primary Overflow) connection:', err.message);
+    }
+  }
+
+  // 1C. Connect Vault 1C (Secondary Overflow for Vault 1B)
+  const vault1cUri = process.env.MONGODB_URI_VAULT_1C;
+  if (vault1cUri && vault1cUri !== primaryUri && vault1cUri !== vault1bUri) {
+    try {
+      vault1cConnection = mongoose.createConnection(vault1cUri, {
+        maxPoolSize: 10,
+        minPoolSize: 1,
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+      });
+      await vault1cConnection.asPromise();
+      Vault1CFranchise = vault1cConnection.model<IFranchise>('Franchise', FranchiseSchema);
+      Vault1CCharacter = vault1cConnection.model<ICharacter>('Character', CharacterSchema);
+      Vault1CStaff = vault1cConnection.model<IStaff>('Staff', StaffSchema);
+      console.log('🏛️  [Vault 1C: Secondary Spillover Hub] Connected (Anime, Character & Staff Overflow ready)');
+    } catch (err: any) {
+      console.warn('⚠️ Could not initialize Vault 1C connection:', err.message);
     }
   }
 
@@ -280,6 +304,7 @@ export function getVault2BMangaModel(): Model<IManga> | null {
 export function getAllFranchiseModels(): Model<IFranchise>[] {
   const models: Model<IFranchise>[] = [Franchise];
   if (Vault1BFranchise) models.push(Vault1BFranchise);
+  if (Vault1CFranchise) models.push(Vault1CFranchise);
   if (OverflowFranchise) models.push(OverflowFranchise);
   return models;
 }
@@ -287,12 +312,14 @@ export function getAllFranchiseModels(): Model<IFranchise>[] {
 export function getAllCharacterModels(): Model<ICharacter>[] {
   const models: Model<ICharacter>[] = [Character];
   if (Vault1BCharacter) models.push(Vault1BCharacter);
+  if (Vault1CCharacter) models.push(Vault1CCharacter);
   return models;
 }
 
 export function getAllStaffModels(): Model<IStaff>[] {
   const models: Model<IStaff>[] = [Staff];
   if (Vault1BStaff) models.push(Vault1BStaff);
+  if (Vault1CStaff) models.push(Vault1CStaff);
   return models;
 }
 
@@ -351,25 +378,33 @@ export async function getTargetMangaWriteModel(): Promise<Model<IManga>> {
  */
 export async function getTargetFranchiseWriteModel(): Promise<Model<IFranchise>> {
   const isFull = await isPrimaryVaultFull();
-  if (isFull && Vault1BFranchise) {
-    console.log(`⚠️ [Multi-Vault Routing] Vault 1 full (>=${PRIMARY_CAPACITY_LIMIT_MB}MB). Directing save to Vault 1B (Spillover)!`);
-    return Vault1BFranchise;
+  if (isFull) {
+    if (Vault1CFranchise && (await isVault1BFull())) {
+      console.log(`⚠️ [Multi-Vault Routing] Vault 1 & 1B full (>=${PRIMARY_CAPACITY_LIMIT_MB}MB). Directing save to Vault 1C (Spillover)!`);
+      return Vault1CFranchise;
+    }
+    if (Vault1BFranchise) {
+      console.log(`⚠️ [Multi-Vault Routing] Vault 1 full (>=${PRIMARY_CAPACITY_LIMIT_MB}MB). Directing save to Vault 1B (Spillover)!`);
+      return Vault1BFranchise;
+    }
   }
   return Franchise;
 }
 
 export async function getTargetCharacterWriteModel(): Promise<Model<ICharacter>> {
   const isFull = await isPrimaryVaultFull();
-  if (isFull && Vault1BCharacter) {
-    return Vault1BCharacter;
+  if (isFull) {
+    if (Vault1CCharacter && (await isVault1BFull())) return Vault1CCharacter;
+    if (Vault1BCharacter) return Vault1BCharacter;
   }
   return Character;
 }
 
 export async function getTargetStaffWriteModel(): Promise<Model<IStaff>> {
   const isFull = await isPrimaryVaultFull();
-  if (isFull && Vault1BStaff) {
-    return Vault1BStaff;
+  if (isFull) {
+    if (Vault1CStaff && (await isVault1BFull())) return Vault1CStaff;
+    if (Vault1BStaff) return Vault1BStaff;
   }
   return Staff;
 }
