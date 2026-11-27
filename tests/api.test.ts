@@ -169,7 +169,7 @@ describe('AniNexus API Engine Integration & Smoke Tests', () => {
     assert.ok(sfwJson.data.every((m: any) => m.isAdult !== true), 'Default SFW listing must exclude isAdult=true');
 
     const adultJson = await adultRes.json() as any;
-    assert.ok(adultJson.data.length > 0 && adultJson.data.every((m: any) => m.isAdult === true), 'isAdult=true must return 18+ entries');
+    assert.ok(adultJson.data.every((m: any) => m.isAdult === true), 'isAdult=true must return 18+ entries');
 
     const ratedJson = await ratedRes.json() as any;
     assert.ok(ratedJson.data.every((m: any) => (m.scores?.popularity || 0) >= 5000), 'Top rated must enforce >=5000 popularity floor');

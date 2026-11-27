@@ -65,14 +65,12 @@ studioRouter.get('/', async (_req: Request, res: Response): Promise<void> => {
           studioMap.set(slug, entry);
         }
         entry.animeCount++;
-        if (entry.topWorks.length < 8) {
-          entry.topWorks.push({
-            slug: f.slug,
-            title: f.titles?.primary || f.slug,
-            poster: f.images?.poster || '',
-            score,
-          });
-        }
+        entry.topWorks.push({
+          slug: f.slug,
+          title: f.titles?.primary || f.slug,
+          poster: f.images?.poster || '',
+          score,
+        });
       }
     }
 

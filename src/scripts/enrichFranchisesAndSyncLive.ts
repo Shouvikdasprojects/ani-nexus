@@ -97,14 +97,18 @@ async function run() {
         }));
         const recommendations = (aniMedia.recommendations?.nodes || [])
           .filter((n: any) => n.mediaRecommendation)
-          .map((n: any) => ({
-            aniId: n.mediaRecommendation.id,
-            malId: n.mediaRecommendation.idMal,
-            title: n.mediaRecommendation.title?.english || n.mediaRecommendation.title?.romaji,
-            coverImage: n.mediaRecommendation.coverImage?.large,
-            score: n.mediaRecommendation.averageScore ? n.mediaRecommendation.averageScore / 10 : null,
-            rating: n.rating,
-          }));
+          .map((n: any) => {
+            const recTitle = n.mediaRecommendation.title?.english || n.mediaRecommendation.title?.romaji || 'Unknown';
+            const recSlug = recTitle.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '');
+            return {
+              targetSlug: recSlug,
+              targetTitle: recTitle,
+              targetPoster: n.mediaRecommendation.coverImage?.large || null,
+              targetFormat: n.mediaRecommendation.format || 'TV',
+              targetScore: n.mediaRecommendation.averageScore ? n.mediaRecommendation.averageScore / 10 : null,
+              votes: n.rating || 1,
+            };
+          });
         const relations = (aniMedia.relations?.edges || [])
           .filter((e: any) => e.node)
           .map((e: any) => ({
