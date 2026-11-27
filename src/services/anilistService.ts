@@ -45,9 +45,13 @@ class AniListService {
   }
 
   async getAnimeByMalId(malId: number): Promise<any | null> {
+    return this.getAnimeDetails({ malId });
+  }
+
+  async getAnimeDetails(idTarget: { aniId?: number; malId?: number }): Promise<any | null> {
     const query = `
-      query ($idMal: Int) {
-        Media(idMal: $idMal, type: ANIME) {
+      query ($id: Int, $idMal: Int) {
+        Media(id: $id, idMal: $idMal, type: ANIME) {
           id
           idMal
           title {
@@ -59,6 +63,7 @@ class AniListService {
           synonyms
           format
           status
+          source
           description(asHtml: false)
           startDate { year month day }
           endDate { year month day }
@@ -68,10 +73,39 @@ class AniListService {
           duration
           isAdult
           genres
+          tags {
+            name
+            rank
+            isMediaSpoiler
+          }
           averageScore
           meanScore
           popularity
           favourites
+          stats {
+            scoreDistribution { score amount }
+            statusDistribution { status amount }
+          }
+          recommendations(perPage: 8, sort: [RATING_DESC]) {
+            nodes {
+              rating
+              mediaRecommendation {
+                id
+                idMal
+                type
+                title { romaji english userPreferred }
+                format
+                coverImage { large }
+                averageScore
+              }
+            }
+          }
+          externalLinks {
+            site
+            type
+            url
+            language
+          }
           coverImage {
             extraLarge
             large
@@ -173,6 +207,7 @@ class AniListService {
               node {
                 id
                 idMal
+                type
                 format
                 status
                 title {
@@ -193,8 +228,47 @@ class AniListService {
       }
     `;
 
-    const data = await this.fetchGraphQL(query, { idMal: malId });
+    const variables: Record<string, any> = {};
+    if (idTarget.aniId) variables.id = idTarget.aniId;
+    if (idTarget.malId) variables.idMal = idTarget.malId;
+    const data = await this.fetchGraphQL(query, variables);
     return data?.Media || null;
+  }
+
+  async getMediaReviews(aniId: number, perPage: number = 10): Promise<any[]> {
+    const query = `
+      query ($id: Int, $perPage: Int) {
+        Media(id: $id) {
+          reviews(perPage: $perPage, sort: [RATING_DESC]) {
+            nodes {
+              id
+              score
+              rating
+              summary
+              body(asHtml: false)
+              createdAt
+              user {
+                name
+                avatar { medium }
+              }
+            }
+          }
+        }
+      }
+    `;
+    const data = await this.fetchGraphQL(query, { id: aniId, perPage });
+    const nodes = data?.Media?.reviews?.nodes || [];
+    return nodes.map((r: any) => ({
+      id: String(r.id),
+      username: r.user?.name || 'Community Reviewer',
+      avatar: r.user?.avatar?.medium || undefined,
+      score: r.score ? Math.round((r.score / 10) * 10) / 10 : 8,
+      summary: r.summary || '',
+      body: r.body || '',
+      createdAt: r.createdAt ? new Date(r.createdAt * 1000).toISOString() : new Date().toISOString(),
+      helpfulCount: r.rating || 0,
+      recommendationType: r.score >= 70 ? 'RECOMMENDED' : r.score >= 50 ? 'MIXED' : 'NOT_RECOMMENDED',
+    }));
   }
 
   async getAiringSchedule(start: number, end: number): Promise<any[]> {
@@ -380,76 +454,103 @@ class AniListService {
     return data?.Page?.media || [];
   }
 
+  private readonly MANGA_DETAILS_FIELDS = `
+  id
+  idMal
+  title {
+    romaji
+    english
+    native
+    userPreferred
+  }
+  synonyms
+  format
+  countryOfOrigin
+  status
+  description(asHtml: false)
+  startDate { year month day }
+  endDate { year month day }
+  chapters
+  volumes
+  isAdult
+  genres
+  tags {
+    name
+    rank
+  }
+  averageScore
+  meanScore
+  popularity
+  favourites
+  stats {
+    scoreDistribution { score amount }
+    statusDistribution { status amount }
+  }
+  recommendations(perPage: 8, sort: [RATING_DESC]) {
+    nodes {
+      rating
+      mediaRecommendation {
+        id
+        idMal
+        type
+        title { romaji english userPreferred }
+        format
+        coverImage { large }
+        averageScore
+      }
+    }
+  }
+  externalLinks {
+    site
+    type
+    url
+  }
+  coverImage {
+    extraLarge
+    large
+  }
+  bannerImage
+  staff(perPage: 12) {
+    edges {
+      role
+      node {
+        id
+        name { full native }
+        image { large }
+      }
+    }
+  }
+  characters(perPage: 15, sort: [ROLE, RELEVANCE]) {
+    edges {
+      role
+      node {
+        id
+        name { full native }
+        image { large }
+      }
+    }
+  }
+  relations {
+    edges {
+      relationType
+      node {
+        id
+        idMal
+        type
+        format
+        status
+        title { romaji english userPreferred }
+        coverImage { large }
+      }
+    }
+  }
+`;
+
   async getMangaDetails(idOrMalId: { aniId?: number; malId?: number }): Promise<any | null> {
     const query = `
       query ($id: Int, $idMal: Int) {
         Media(id: $id, idMal: $idMal, type: MANGA) {
-          id
-          idMal
-          title {
-            romaji
-            english
-            native
-            userPreferred
-          }
-          synonyms
-          format
-          countryOfOrigin
-          status
-          description(asHtml: false)
-          startDate { year month day }
-          endDate { year month day }
-          chapters
-          volumes
-          isAdult
-          genres
-          tags {
-            name
-            rank
-          }
-          averageScore
-          meanScore
-          popularity
-          favourites
-          coverImage {
-            extraLarge
-            large
-          }
-          bannerImage
-          staff(perPage: 12) {
-            edges {
-              role
-              node {
-                id
-                name { full native }
-                image { large }
-              }
-            }
-          }
-          characters(perPage: 15, sort: [ROLE, RELEVANCE]) {
-            edges {
-              role
-              node {
-                id
-                name { full native }
-                image { large }
-              }
-            }
-          }
-          relations {
-            edges {
-              relationType
-              node {
-                id
-                idMal
-                type
-                format
-                status
-                title { romaji english userPreferred }
-                coverImage { large }
-              }
-            }
-          }
+          ${this.MANGA_DETAILS_FIELDS}
         }
       }
     `;
@@ -496,11 +597,10 @@ class AniListService {
     return data?.Page?.media || [];
   }
 
-  async getMangaByYear(year: number, page: number = 1, perPage: number = 50): Promise<any[]> {
-    const query = `
-      query ($page: Int, $perPage: Int, $greater: FuzzyDateInt, $lesser: FuzzyDateInt) {
-        Page(page: $page, perPage: $perPage) {
-          media(type: MANGA, startDate_greater: $greater, startDate_lesser: $lesser, sort: [POPULARITY_DESC]) {
+  async getMangaByYear(year: number, page: number = 1, perPage: number = 50, fullDetails: boolean = false): Promise<any[]> {
+    const fields = fullDetails
+      ? this.MANGA_DETAILS_FIELDS
+      : `
             id
             idMal
             title { romaji english native userPreferred }
@@ -511,7 +611,12 @@ class AniListService {
             volumes
             averageScore
             popularity
-            coverImage { large }
+            coverImage { large }`;
+    const query = `
+      query ($page: Int, $perPage: Int, $greater: FuzzyDateInt, $lesser: FuzzyDateInt) {
+        Page(page: $page, perPage: $perPage) {
+          media(type: MANGA, startDate_greater: $greater, startDate_lesser: $lesser, sort: [POPULARITY_DESC]) {
+            ${fields}
           }
         }
       }

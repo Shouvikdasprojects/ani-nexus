@@ -46,6 +46,7 @@ export interface ICharacter extends Document {
   primaryVoiceActor?: IVoiceActorRef | null;
   voiceActors: IVoiceActorRef[];
   animeAppearances: IAnimeAppearance[];
+  mangaAppearances: IAnimeAppearance[];
   mediaCount: {
     anime: number;
     manga: number;
@@ -106,6 +107,17 @@ export const CharacterSchema = new Schema<ICharacter>(
         slug: { type: String, default: null },
         title: { type: String, required: true },
         format: { type: String, default: 'TV' },
+        role: { type: String, enum: ['MAIN', 'SUPPORTING', 'BACKGROUND'], default: 'SUPPORTING' },
+        year: { type: Number, default: null },
+        image: { type: String, default: null },
+      },
+    ],
+    mangaAppearances: [
+      {
+        mediaId: { type: Number, required: true },
+        slug: { type: String, default: null },
+        title: { type: String, required: true },
+        format: { type: String, default: 'MANGA' },
         role: { type: String, enum: ['MAIN', 'SUPPORTING', 'BACKGROUND'], default: 'SUPPORTING' },
         year: { type: Number, default: null },
         image: { type: String, default: null },

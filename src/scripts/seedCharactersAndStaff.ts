@@ -139,7 +139,7 @@ const CHARACTERS_CHUNK_QUERY = `
               format
               coverImage { large }
             }
-            voiceActors(language: JAPANESE) {
+            voiceActors {
               id
               name { full native }
               image { large }

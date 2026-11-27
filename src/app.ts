@@ -17,6 +17,7 @@ import { awardRouter } from './routes/awardRoutes.js';
 import { characterRouter } from './routes/characterRoutes.js';
 import { staffRouter } from './routes/staffRoutes.js';
 import { mangaRouter } from './routes/mangaRoutes.js';
+import { studioRouter } from './routes/studioRoutes.js';
 import { requestIdMiddleware } from './utils/requestId.js';
 import { smartCacheMiddleware } from './utils/cache.js';
 import { getVaultHealthStatus } from './config/database.js';
@@ -179,6 +180,7 @@ app.use('/api/v1/characters', characterRouter);
 app.use('/api/v1/staff', staffRouter);
 app.use('/api/v1/search', searchRouter);
 app.use('/api/v1/manga', mangaRouter);
+app.use('/api/v1/studios', studioRouter);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {

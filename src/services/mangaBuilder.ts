@@ -32,12 +32,12 @@ class MangaBuilder {
     return 'right-to-left';
   }
 
-  public async buildAndSaveManga(idTarget: { aniId?: number; malId?: number }): Promise<IManga | null> {
+  public async buildAndSaveManga(idTarget: { aniId?: number; malId?: number }, prefetchedAniMedia?: any): Promise<IManga | null> {
     const PrimaryMangaModel = getMangaModel();
     const TargetModel = await getTargetMangaWriteModel();
 
-    // 1. Fetch details from AniList
-    const aniMedia = await anilistService.getMangaDetails(idTarget);
+    // 1. Fetch details from AniList (or reuse batch-prefetched payload)
+    const aniMedia = prefetchedAniMedia || (await anilistService.getMangaDetails(idTarget));
     const resolvedMalId = idTarget.malId || aniMedia?.idMal;
 
     // 2. Fetch details from MAL if available
@@ -146,8 +146,9 @@ class MangaBuilder {
       }
     }
 
-    // 9. Genres & Tags
-    const genres: IMangaGenre[] = (aniMedia?.genres || malData?.genres?.map((g: any) => g.name) || []).map((g: string) => ({
+    // 9. Genres, Tags & Real Demographic Detection
+    const rawGenreStrings: string[] = aniMedia?.genres || malData?.genres?.map((g: any) => g.name) || [];
+    const genres: IMangaGenre[] = rawGenreStrings.map((g: string) => ({
       name: g,
       slug: this.slugify(g),
       icon: '📖',
@@ -157,6 +158,30 @@ class MangaBuilder {
       name: t.name,
       rank: t.rank,
     }));
+
+    const demoCandidates = ['Shounen', 'Seinen', 'Shoujo', 'Josei', 'Kids'];
+    const allTagAndGenreNames = new Set([
+      ...rawGenreStrings.map((g) => g.toLowerCase()),
+      ...tags.map((t) => (t.name || '').toLowerCase()),
+    ]);
+    const detectedDemo = demoCandidates.find((d) => allTagAndGenreNames.has(d.toLowerCase()));
+
+    const serialNames: string[] = malData?.serialization?.map((s: any) => s.name).filter(Boolean) || [];
+
+    const recommendations = (aniMedia?.recommendations?.nodes || [])
+      .filter((n: any) => n?.mediaRecommendation)
+      .map((n: any) => {
+        const rec = n.mediaRecommendation;
+        const recTitle = rec.title?.english || rec.title?.romaji || rec.title?.userPreferred || 'Recommended Title';
+        return {
+          targetSlug: this.slugify(recTitle),
+          targetTitle: recTitle,
+          targetPoster: rec.coverImage?.large || undefined,
+          targetFormat: rec.format || undefined,
+          targetScore: rec.averageScore || undefined,
+          votes: n.rating || 1,
+        };
+      });
 
     // 10. Assemble complete document
     const docData: Partial<IManga> = {
@@ -187,15 +212,17 @@ class MangaBuilder {
       startDate: aniMedia?.startDate,
       endDate: aniMedia?.endDate,
       synopsis: aniMedia?.description || malData?.synopsis || 'No synopsis available.',
+      background: malData?.background || undefined,
       images: {
         cover: aniMedia?.coverImage?.extraLarge || aniMedia?.coverImage?.large || malData?.main_picture?.large || malData?.main_picture?.medium || '',
         banner: aniMedia?.bannerImage,
       },
       genres,
       tags,
-      demographic: 'Shounen',
+      demographic: detectedDemo,
       creators,
-      publishers: malData?.serialization?.map((s: any) => s.name) || [],
+      publishers: serialNames,
+      serializationMagazine: serialNames[0] || undefined,
       scores: {
         weightedAverage,
         dualCommunity: {
@@ -205,11 +232,17 @@ class MangaBuilder {
         popularity: aniMedia?.popularity || malData?.popularity || 0,
         favorites: aniMedia?.favourites || 0,
         rank: malData?.rank,
+        scoredBy: malData?.num_scoring_users || undefined,
+        members: malData?.num_list_users || undefined,
       },
+      scoreDistribution: (aniMedia?.stats?.scoreDistribution || []).map((s: any) => ({ score: s.score, amount: s.amount })),
+      statusDistribution: (aniMedia?.stats?.statusDistribution || []).map((s: any) => ({ status: s.status, amount: s.amount })),
+      recommendations,
+      externalLinks: (aniMedia?.externalLinks || []).slice(0, 12).map((l: any) => ({ site: l.site, type: l.type, url: l.url })),
       adaptations,
       characters,
       licensing: {
-        publishers: malData?.serialization?.map((s: any) => s.name) || [],
+        publishers: serialNames,
       },
       isAdult: Boolean(aniMedia?.isAdult),
     };

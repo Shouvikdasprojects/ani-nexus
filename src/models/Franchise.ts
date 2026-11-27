@@ -110,6 +110,7 @@ export interface ITimelinePart {
       scoredBy?: number | null;
       rank?: number | null;
       popularity?: number | null;
+      members?: number | null;
     };
     anilist?: {
       score?: number | null;
@@ -174,6 +175,35 @@ export interface IFranchise extends Document {
   };
   totalParts: number;
   totalEpisodes: number;
+  source?: string | null;
+  background?: string | null;
+  startDate?: { year?: number | null; month?: number | null; day?: number | null };
+  endDate?: { year?: number | null; month?: number | null; day?: number | null };
+  broadcast?: { dayOfWeek?: string | null; startTime?: string | null; timezone?: string | null };
+  producers?: Array<{ studioId: number; name: string }>;
+  tags?: Array<{ name: string; rank?: number; isSpoiler?: boolean }>;
+  relations?: Array<{
+    relationType: string;
+    type: string;
+    slug: string;
+    title: string;
+    format?: string | null;
+    year?: number | null;
+    id?: number | null;
+    idMal?: number | null;
+    image?: string | null;
+  }>;
+  recommendations?: Array<{
+    targetSlug: string;
+    targetTitle: string;
+    targetPoster?: string | null;
+    targetFormat?: string | null;
+    targetScore?: number | null;
+    votes?: number;
+  }>;
+  scoreDistribution?: Array<{ score: number; amount: number }>;
+  statusDistribution?: Array<{ status: string; amount: number }>;
+  externalLinks?: Array<{ site: string; type?: string | null; url: string }>;
   studios: IStudio[];
   staff: IStaffMember[];
   mainCharacters: ICharacter[];
@@ -316,6 +346,7 @@ const TimelinePartSchema = new Schema<ITimelinePart>(
         scoredBy: { type: Number, default: null },
         rank: { type: Number, default: null },
         popularity: { type: Number, default: null },
+        members: { type: Number, default: null },
       },
       anilist: {
         score: { type: Number, default: null },
@@ -415,6 +446,78 @@ const FranchiseSchema = new Schema<IFranchise>(
     },
     totalParts: { type: Number, default: 1 },
     totalEpisodes: { type: Number, default: 0 },
+    source: { type: String, default: null },
+    background: { type: String, default: null },
+    startDate: {
+      year: { type: Number, default: null },
+      month: { type: Number, default: null },
+      day: { type: Number, default: null },
+    },
+    endDate: {
+      year: { type: Number, default: null },
+      month: { type: Number, default: null },
+      day: { type: Number, default: null },
+    },
+    broadcast: {
+      dayOfWeek: { type: String, default: null },
+      startTime: { type: String, default: null },
+      timezone: { type: String, default: null },
+    },
+    producers: [
+      {
+        studioId: { type: Number, default: 0 },
+        name: { type: String, required: true },
+      },
+    ],
+    tags: [
+      {
+        name: { type: String, required: true },
+        rank: { type: Number, default: 0 },
+        isSpoiler: { type: Boolean, default: false },
+      },
+    ],
+    relations: [
+      {
+        relationType: { type: String, required: true },
+        type: { type: String, default: 'ANIME' },
+        slug: { type: String, required: true },
+        title: { type: String, required: true },
+        format: { type: String, default: null },
+        year: { type: Number, default: null },
+        id: { type: Number, default: null },
+        idMal: { type: Number, default: null },
+        image: { type: String, default: null },
+      },
+    ],
+    recommendations: [
+      {
+        targetSlug: { type: String, required: true },
+        targetTitle: { type: String, required: true },
+        targetPoster: { type: String, default: null },
+        targetFormat: { type: String, default: null },
+        targetScore: { type: Number, default: null },
+        votes: { type: Number, default: 1 },
+      },
+    ],
+    scoreDistribution: [
+      {
+        score: { type: Number, required: true },
+        amount: { type: Number, required: true },
+      },
+    ],
+    statusDistribution: [
+      {
+        status: { type: String, required: true },
+        amount: { type: Number, required: true },
+      },
+    ],
+    externalLinks: [
+      {
+        site: { type: String, required: true },
+        type: { type: String, default: null },
+        url: { type: String, required: true },
+      },
+    ],
     studios: [StudioSchema],
     staff: [StaffMemberSchema],
     mainCharacters: [CharacterSchema],

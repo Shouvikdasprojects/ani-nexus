@@ -299,9 +299,10 @@ class CharacterStaffService {
     const slug = `${this.slugify(fullName)}-${characterId}`;
     const physical = this.parseCharacterPhysicalDetails(rawChar.description, rawChar);
 
-    // Extract Voice Actors
+    // Extract Voice Actors & Media Appearances (Anime + Manga)
     const voiceActorsMap = new Map<number, any>();
     const animeAppearances: any[] = [];
+    const mangaAppearances: any[] = [];
     let primaryVoiceActor: any = null;
 
     if (rawChar.media?.edges && Array.isArray(rawChar.media.edges)) {
@@ -309,41 +310,55 @@ class CharacterStaffService {
         const mediaNode = edge.node;
         if (!mediaNode) continue;
 
+        const appearanceEntry = {
+          mediaId: mediaNode.id,
+          slug: this.slugify(mediaNode.title?.english || mediaNode.title?.romaji || `media-${mediaNode.id}`),
+          title: mediaNode.title?.english || mediaNode.title?.romaji || 'Untitled',
+          format: mediaNode.format || (mediaNode.type === 'MANGA' ? 'MANGA' : 'TV'),
+          role: edge.characterRole || 'SUPPORTING',
+          year: mediaNode.startDate?.year || null,
+          image: mediaNode.coverImage?.large || null,
+        };
+
         if (mediaNode.type === 'ANIME') {
-          animeAppearances.push({
-            mediaId: mediaNode.id,
-            slug: this.slugify(mediaNode.title?.english || mediaNode.title?.romaji || `anime-${mediaNode.id}`),
-            title: mediaNode.title?.english || mediaNode.title?.romaji || 'Untitled Anime',
-            format: mediaNode.format || 'TV',
-            role: edge.characterRole || 'SUPPORTING',
-            year: mediaNode.startDate?.year || null,
-            image: mediaNode.coverImage?.large || null,
-          });
+          animeAppearances.push(appearanceEntry);
+        } else if (mediaNode.type === 'MANGA') {
+          mangaAppearances.push(appearanceEntry);
         }
 
+        // Normalize both single-query voiceActorRoles and batch-query voiceActors
+        const rawVaList: any[] = [];
         if (edge.voiceActorRoles && Array.isArray(edge.voiceActorRoles)) {
           for (const vaEdge of edge.voiceActorRoles) {
-            const va = vaEdge.voiceActor;
-            if (!va || voiceActorsMap.has(va.id)) continue;
+            if (vaEdge?.voiceActor) rawVaList.push(vaEdge.voiceActor);
+          }
+        }
+        if (edge.voiceActors && Array.isArray(edge.voiceActors)) {
+          for (const va of edge.voiceActors) {
+            if (va) rawVaList.push(va);
+          }
+        }
 
-            const vaObj = {
-              actorId: va.id,
-              name: {
-                full: va.name?.full || 'Unknown Voice Actor',
-                native: va.name?.native || null,
-              },
-              language: va.languageV2 || 'Japanese',
-              image: va.image?.large || null,
-              homeTown: va.homeTown || null,
-              birthday: va.dateOfBirth?.year ? `${va.dateOfBirth.year}-${va.dateOfBirth.month}-${va.dateOfBirth.day}` : null,
-              bio: va.description || null,
-            };
+        for (const va of rawVaList) {
+          if (!va?.id || voiceActorsMap.has(va.id)) continue;
 
-            voiceActorsMap.set(va.id, vaObj);
+          const vaObj = {
+            actorId: va.id,
+            name: {
+              full: va.name?.full || 'Unknown Voice Actor',
+              native: va.name?.native || null,
+            },
+            language: va.languageV2 || 'Japanese',
+            image: va.image?.large || null,
+            homeTown: va.homeTown || null,
+            birthday: va.dateOfBirth?.year ? `${va.dateOfBirth.year}-${va.dateOfBirth.month}-${va.dateOfBirth.day}` : null,
+            bio: va.description || null,
+          };
 
-            if (!primaryVoiceActor && vaObj.language === 'Japanese') {
-              primaryVoiceActor = vaObj;
-            }
+          voiceActorsMap.set(va.id, vaObj);
+
+          if (!primaryVoiceActor && vaObj.language === 'Japanese') {
+            primaryVoiceActor = vaObj;
           }
         }
       }
@@ -369,9 +384,10 @@ class CharacterStaffService {
       primaryVoiceActor,
       voiceActors,
       animeAppearances,
+      mangaAppearances,
       mediaCount: {
         anime: animeAppearances.length,
-        manga: 0,
+        manga: mangaAppearances.length,
       },
       lastUpdated: new Date(),
     };

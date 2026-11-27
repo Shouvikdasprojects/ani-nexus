@@ -3,6 +3,7 @@ import { getAllMangaModels } from '../config/database.js';
 import { escapeRegex, findOneAcrossVaults, findMergedAcrossVaults, countAcrossVaults } from '../utils/vaultQuery.js';
 import { mangaBuilder } from '../services/mangaBuilder.js';
 import { mangadexService } from '../services/mangadexService.js';
+import { anilistService } from '../services/anilistService.js';
 
 export const mangaRouter = Router();
 
@@ -371,6 +372,81 @@ mangaRouter.get('/:idOrSlug/chapters', async (req: Request, res: Response): Prom
         chapters,
       },
     });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/v1/manga/:idOrSlug/reviews
+ * Community reviews fetched dynamically via AniList ID
+ */
+mangaRouter.get('/:idOrSlug/reviews', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const param = String(req.params.idOrSlug).trim();
+    const doc = await findMangaAcrossVaults(param);
+    if (!doc) {
+      res.status(404).json({ success: false, error: `Manga '${param}' not found.` });
+      return;
+    }
+
+    const aniId = doc.ids?.aniId;
+    const reviews = aniId ? await anilistService.getMediaReviews(aniId, 10) : [];
+    res.json({ success: true, data: { slug: doc.slug, reviews } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/v1/manga/:idOrSlug/recommendations
+ * Stored paired recommendations, or genre-matched top manga fallback
+ */
+mangaRouter.get('/:idOrSlug/recommendations', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const param = String(req.params.idOrSlug).trim();
+    const doc = await findMangaAcrossVaults(param);
+    if (!doc) {
+      res.status(404).json({ success: false, error: `Manga '${param}' not found.` });
+      return;
+    }
+
+    let recs = (doc.recommendations || []).map((r: any, idx: number) => ({
+      id: `${doc.slug}-rec-${idx}`,
+      sourceSlug: doc.slug,
+      targetSlug: r.targetSlug,
+      targetTitle: r.targetTitle,
+      targetPoster: r.targetPoster || '/placeholder.svg',
+      targetFormat: r.targetFormat,
+      targetScore: r.targetScore,
+      reason: 'Recommended by readers with similar taste.',
+      votes: r.votes || 1,
+    }));
+
+    if (recs.length === 0 && doc.genres?.length) {
+      const genreSlugs = doc.genres.slice(0, 2).map((g: any) => g.slug);
+      const { results: similar } = await findMergedAcrossVaults(getAllMangaModels(), {
+        filter: { slug: { $ne: doc.slug }, isAdult: { $ne: true }, 'genres.slug': { $in: genreSlugs } },
+        projection: { slug: 1, 'titles.primary': 1, 'images.cover': 1, type: 1, 'scores.weightedAverage': 1 },
+        sort: { 'scores.popularity': -1 },
+        skip: 0,
+        limit: 6,
+        dedupeKey: 'slug',
+      });
+      recs = similar.map((s: any, idx: number) => ({
+        id: `${doc.slug}-genre-rec-${idx}`,
+        sourceSlug: doc.slug,
+        targetSlug: s.slug,
+        targetTitle: s.titles?.primary || s.slug,
+        targetPoster: s.images?.cover || '/placeholder.svg',
+        targetFormat: s.type,
+        targetScore: s.scores?.weightedAverage,
+        reason: `Shares core genres (${genreSlugs.join(', ')}) and reader appeal.`,
+        votes: 1,
+      }));
+    }
+
+    res.json({ success: true, data: { slug: doc.slug, recommendations: recs } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -85,8 +85,11 @@ export async function handleAnimeFilter(req: Request, res: Response): Promise<vo
     if (dub) {
       mongoQuery['timeline.languages.audioDubs'] = new RegExp(`^${escapeRegex(String(dub))}$`, 'i');
     }
-    if (isAdult !== undefined) {
-      mongoQuery['contentRating.isAdult'] = isAdult === 'true';
+    const isAdultMode = String(isAdult ?? 'false').toLowerCase();
+    if (isAdultMode === 'true') {
+      mongoQuery['contentRating.isAdult'] = true;
+    } else if (isAdultMode !== 'all') {
+      mongoQuery['contentRating.isAdult'] = { $ne: true };
     }
 
     let sortObj: any = { 'timeline.0.scores.combinedAverage': -1 };

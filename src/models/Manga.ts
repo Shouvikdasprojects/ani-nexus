@@ -64,6 +64,7 @@ export interface IManga extends Document {
     day?: number;
   };
   synopsis?: string;
+  background?: string;
   images: {
     cover: string;
     banner?: string;
@@ -83,7 +84,20 @@ export interface IManga extends Document {
     popularity: number;
     favorites: number;
     rank?: number;
+    scoredBy?: number;
+    members?: number;
   };
+  scoreDistribution?: Array<{ score: number; amount: number }>;
+  statusDistribution?: Array<{ status: string; amount: number }>;
+  recommendations?: Array<{
+    targetSlug: string;
+    targetTitle: string;
+    targetPoster?: string;
+    targetFormat?: string;
+    targetScore?: number;
+    votes?: number;
+  }>;
+  externalLinks?: Array<{ site: string; type?: string; url: string }>;
   adaptations: IMangaAdaptation[];
   characters: IMangaCharacterRef[];
   licensing: {
@@ -143,6 +157,7 @@ export const MangaSchema = new Schema<IManga>(
       day: Number,
     },
     synopsis: { type: String },
+    background: { type: String },
     images: {
       cover: { type: String, required: true },
       banner: { type: String },
@@ -179,7 +194,38 @@ export const MangaSchema = new Schema<IManga>(
       popularity: { type: Number, default: 0, index: true },
       favorites: { type: Number, default: 0 },
       rank: { type: Number },
+      scoredBy: { type: Number },
+      members: { type: Number },
     },
+    scoreDistribution: [
+      {
+        score: { type: Number },
+        amount: { type: Number },
+      },
+    ],
+    statusDistribution: [
+      {
+        status: { type: String },
+        amount: { type: Number },
+      },
+    ],
+    recommendations: [
+      {
+        targetSlug: { type: String },
+        targetTitle: { type: String },
+        targetPoster: { type: String },
+        targetFormat: { type: String },
+        targetScore: { type: Number },
+        votes: { type: Number },
+      },
+    ],
+    externalLinks: [
+      {
+        site: { type: String },
+        type: { type: String },
+        url: { type: String },
+      },
+    ],
     adaptations: [
       {
         relationType: { type: String, default: 'ADAPTATION' },

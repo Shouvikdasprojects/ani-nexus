@@ -8,10 +8,12 @@ import {
 import {
   escapeRegex,
   findOneAcrossVaults,
+  findMergedAcrossVaults,
   findUnpaginatedMergedAcrossVaults,
 } from '../utils/vaultQuery.js';
 import { franchiseBuilder } from '../services/franchiseBuilder.js';
 import { malService } from '../services/malService.js';
+import { anilistService } from '../services/anilistService.js';
 
 export const seriesRouter = Router();
 
@@ -324,5 +326,83 @@ seriesRouter.get('/:slug/adaptations', async (req: Request, res: Response): Prom
       success: false,
       error: err.message,
     });
+  }
+});
+
+/**
+ * GET /api/v1/series/:slug/reviews
+ * Community reviews fetched dynamically via AniList ID
+ */
+seriesRouter.get('/:slug/reviews', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const slug = String(req.params.slug);
+    const franchise = await findFranchise({ slug }, { slug: 1, 'timeline.ids': 1 });
+    if (!franchise) {
+      res.status(404).json({ success: false, error: `Franchise '${slug}' not found.` });
+      return;
+    }
+
+    const aniId = franchise.timeline?.[0]?.ids?.aniId;
+    const reviews = aniId ? await anilistService.getMediaReviews(aniId, 10) : [];
+    res.json({ success: true, data: { slug, reviews } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * GET /api/v1/series/:slug/recommendations
+ * Stored paired recommendations, or genre-matched top franchises across Vault 1 & 1B
+ */
+seriesRouter.get('/:slug/recommendations', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const slug = String(req.params.slug);
+    const franchise = await findFranchise(
+      { slug },
+      { slug: 1, recommendations: 1, 'classification.genres.slug': 1 }
+    );
+    if (!franchise) {
+      res.status(404).json({ success: false, error: `Franchise '${slug}' not found.` });
+      return;
+    }
+
+    let recs = (franchise.recommendations || []).map((r: any, idx: number) => ({
+      id: `${slug}-rec-${idx}`,
+      sourceSlug: slug,
+      targetSlug: r.targetSlug,
+      targetTitle: r.targetTitle,
+      targetPoster: r.targetPoster || '/placeholder.jpg',
+      targetFormat: r.targetFormat,
+      targetScore: r.targetScore,
+      reason: 'Recommended by fans who enjoyed similar themes and pacing.',
+      votes: r.votes || 1,
+    }));
+
+    if (recs.length === 0 && franchise.classification?.genres?.length) {
+      const genreSlugs = franchise.classification.genres.slice(0, 2).map((g: any) => g.slug);
+      const { results: similar } = await findMergedAcrossVaults(getAllFranchiseModels(), {
+        filter: { slug: { $ne: slug }, 'contentRating.isAdult': { $ne: true }, 'classification.genres.slug': { $in: genreSlugs } },
+        projection: { slug: 1, 'titles.primary': 1, 'images.poster': 1, 'timeline.format': 1, 'timeline.scores.combinedAverage': 1 },
+        sort: { 'timeline.0.scores.combinedAverage': -1 },
+        skip: 0,
+        limit: 6,
+        dedupeKey: 'slug',
+      });
+      recs = similar.map((s: any, idx: number) => ({
+        id: `${slug}-genre-rec-${idx}`,
+        sourceSlug: slug,
+        targetSlug: s.slug,
+        targetTitle: s.titles?.primary || s.slug,
+        targetPoster: s.images?.poster || '/placeholder.jpg',
+        targetFormat: s.timeline?.[0]?.format || 'TV',
+        targetScore: s.timeline?.[0]?.scores?.combinedAverage || undefined,
+        reason: `Shares core genres (${genreSlugs.join(', ')}) and top community rating.`,
+        votes: 1,
+      }));
+    }
+
+    res.json({ success: true, data: { slug, recommendations: recs } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });

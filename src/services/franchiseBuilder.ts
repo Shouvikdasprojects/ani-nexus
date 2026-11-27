@@ -118,26 +118,33 @@ export class FranchiseBuilder {
       tmdbEpisodes = eps;
     }
 
-    // 5. Extraction of Studios & Animation Houses
+    // 5. Extraction of Studios & Producers
     const studios: IStudio[] = [];
+    const producers: Array<{ studioId: number; name: string }> = [];
     const seenStudioNames = new Set<string>();
+    const seenProducerNames = new Set<string>();
 
     if (aniMedia.studios?.edges && Array.isArray(aniMedia.studios.edges)) {
       for (const edge of aniMedia.studios.edges) {
         const node = edge.node;
         if (!node || !node.name) continue;
         const name = node.name.trim();
-        if (seenStudioNames.has(name.toLowerCase())) continue;
-        seenStudioNames.add(name.toLowerCase());
-
-        studios.push({
-          studioId: node.id || 0,
-          name,
-          isAnimationStudio: Boolean(node.isAnimationStudio ?? edge.isMain),
-          isMain: Boolean(edge.isMain),
-          siteUrl: node.siteUrl || null,
-          favourites: node.favourites || 0,
-        });
+        const isAnim = Boolean(node.isAnimationStudio ?? edge.isMain);
+        if (isAnim) {
+          if (seenStudioNames.has(name.toLowerCase())) continue;
+          seenStudioNames.add(name.toLowerCase());
+          studios.push({
+            studioId: node.id || 0,
+            name,
+            isAnimationStudio: true,
+            isMain: Boolean(edge.isMain),
+            siteUrl: node.siteUrl || null,
+            favourites: node.favourites || 0,
+          });
+        } else if (!seenProducerNames.has(name.toLowerCase())) {
+          seenProducerNames.add(name.toLowerCase());
+          producers.push({ studioId: node.id || 0, name });
+        }
       }
     }
 
@@ -200,7 +207,7 @@ export class FranchiseBuilder {
           yearsActive: node.yearsActive || [],
           homeTown: node.homeTown || null,
           bloodType: node.bloodType || null,
-          bio: node.description || null,
+          bio: null, // Full bio lives in Vault 1/1B Staff collection
           siteUrl: node.siteUrl || null,
           favourites: node.favourites || 0,
           socials,
@@ -238,7 +245,7 @@ export class FranchiseBuilder {
               image: va.image?.large || null,
               homeTown: va.homeTown || null,
               birthday: va.dateOfBirth?.year ? `${va.dateOfBirth.year}-${va.dateOfBirth.month}-${va.dateOfBirth.day}` : null,
-              bio: va.description || null,
+              bio: null, // Full VA bio lives in Vault 1/1B Staff collection
               siteUrl: va.siteUrl || null,
               favourites: va.favourites || 0,
               famousOtherRoles: [],
@@ -260,7 +267,7 @@ export class FranchiseBuilder {
             age: charNode.age || null,
             birthday: charNode.dateOfBirth?.year ? `${charNode.dateOfBirth.year}-${charNode.dateOfBirth.month}-${charNode.dateOfBirth.day}` : null,
             bloodType: charNode.bloodType || null,
-            about: charNode.description || null,
+            about: null, // Full character bio lives in Vault 1 Character collection
           },
           siteUrl: charNode.siteUrl || null,
           favourites: charNode.favourites || 0,
@@ -341,6 +348,7 @@ export class FranchiseBuilder {
     const malScoredBy = malData?.num_scoring_users || null;
     const malRank = malData?.rank || null;
     const malPop = malData?.popularity || null;
+    const malMembers = malData?.num_list_users || null;
 
     const aniScore = aniMedia.averageScore || null;
     const aniPop = aniMedia.popularity || null;
@@ -379,6 +387,7 @@ export class FranchiseBuilder {
           scoredBy: malScoredBy,
           rank: malRank,
           popularity: malPop,
+          members: malMembers,
         },
         anilist: {
           score: aniScore,
@@ -594,6 +603,63 @@ export class FranchiseBuilder {
       malData.alternative_titles.synonyms.forEach((s: string) => synonymsSet.add(s));
     }
 
+    // Build top-level Relations, Tags, Recommendations, Stats & External Links
+    const topRelations: any[] = [];
+    if (aniMedia.relations?.edges && Array.isArray(aniMedia.relations.edges)) {
+      for (const rel of aniMedia.relations.edges) {
+        const node = rel.node;
+        if (!node) continue;
+        const relTitle = node.title?.english || node.title?.romaji || 'Related Entry';
+        topRelations.push({
+          relationType: rel.relationType || 'RELATED',
+          type: node.type || (node.format === 'MANGA' || node.format === 'NOVEL' ? 'MANGA' : 'ANIME'),
+          slug: this.slugify(relTitle),
+          title: relTitle,
+          format: node.format || null,
+          year: node.startDate?.year || null,
+          id: node.id || null,
+          idMal: node.idMal || null,
+          image: node.coverImage?.large || null,
+        });
+      }
+    }
+
+    const tags = (aniMedia.tags || [])
+      .filter((t: any) => !t.isMediaSpoiler)
+      .slice(0, 15)
+      .map((t: any) => ({ name: t.name, rank: t.rank || 0, isSpoiler: Boolean(t.isMediaSpoiler) }));
+
+    const recommendations = (aniMedia.recommendations?.nodes || [])
+      .filter((n: any) => n?.mediaRecommendation)
+      .map((n: any) => {
+        const rec = n.mediaRecommendation;
+        const recTitle = rec.title?.english || rec.title?.romaji || rec.title?.userPreferred || 'Recommended Title';
+        return {
+          targetSlug: this.slugify(recTitle),
+          targetTitle: recTitle,
+          targetPoster: rec.coverImage?.large || null,
+          targetFormat: rec.format || null,
+          targetScore: rec.averageScore || null,
+          votes: n.rating || 1,
+        };
+      });
+
+    const scoreDistribution = (aniMedia.stats?.scoreDistribution || []).map((s: any) => ({
+      score: s.score,
+      amount: s.amount,
+    }));
+
+    const statusDistribution = (aniMedia.stats?.statusDistribution || []).map((s: any) => ({
+      status: s.status,
+      amount: s.amount,
+    }));
+
+    const externalLinks = (aniMedia.externalLinks || []).slice(0, 15).map((l: any) => ({
+      site: l.site,
+      type: l.type || null,
+      url: l.url,
+    }));
+
     // 13. Upsert into Target Vault (Auto-spills over to Vault 1B when Vault 1 >= limit)
     const TargetModel = await getTargetFranchiseWriteModel();
     const payload = {
@@ -611,6 +677,17 @@ export class FranchiseBuilder {
         logo,
       },
       overview: aniMedia.description || malData?.synopsis || '',
+      source: aniMedia.source || malData?.source || null,
+      background: malData?.background || null,
+      startDate: aniMedia.startDate || null,
+      endDate: aniMedia.endDate || null,
+      broadcast: malData?.broadcast
+        ? {
+            dayOfWeek: malData.broadcast.day_of_the_week || null,
+            startTime: malData.broadcast.start_time || null,
+            timezone: 'JST',
+          }
+        : undefined,
       classification: {
         genres: genresList,
         themes: themesList,
@@ -619,6 +696,13 @@ export class FranchiseBuilder {
       contentRating,
       totalParts: timeline.length,
       totalEpisodes: timeline.reduce((acc, t) => acc + (t.episodes?.length || 0), 0) || totalEpsCount,
+      producers,
+      tags,
+      relations: topRelations,
+      recommendations,
+      scoreDistribution,
+      statusDistribution,
+      externalLinks,
       studios,
       staff: staff.slice(0, 30),
       mainCharacters: characters.slice(0, 30),

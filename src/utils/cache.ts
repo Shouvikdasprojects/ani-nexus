@@ -31,7 +31,8 @@ export function smartCacheMiddleware(req: Request, res: Response, next: NextFunc
     path.startsWith('/api/v1/awards') ||
     path.startsWith('/api/v1/top') ||
     path.startsWith('/api/v1/filter') ||
-    path.startsWith('/api/v1/seasons')
+    path.startsWith('/api/v1/seasons') ||
+    path.startsWith('/api/v1/studios')
   ) {
     cacheHeader = 'public, max-age=3600, stale-while-revalidate=86400';
   }

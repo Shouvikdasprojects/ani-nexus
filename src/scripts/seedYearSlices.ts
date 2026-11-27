@@ -57,7 +57,7 @@ async function seedYearSlices() {
 
       while (pageRetries < 5) {
         try {
-          pageItems = await anilistService.getMangaByYear(year, page, perPage);
+          pageItems = await anilistService.getMangaByYear(year, page, perPage, true);
           break;
         } catch (fetchErr: any) {
           pageRetries++;
@@ -72,76 +72,79 @@ async function seedYearSlices() {
         break;
       }
 
-      for (let i = 0; i < pageItems.length; i++) {
-        const item = pageItems[i];
-        totalProcessed++;
-        const itemTitle = item.title?.english || item.title?.romaji || item.title?.userPreferred || `ID:${item.id}`;
+      const CONCURRENCY = 4;
+      for (let idx = 0; idx < pageItems.length; idx += CONCURRENCY) {
+        if (!yearHasMore) break;
+        const chunk = pageItems.slice(idx, idx + CONCURRENCY);
+        await Promise.all(
+          chunk.map(async (item) => {
+            totalProcessed++;
+            const itemTitle = item.title?.english || item.title?.romaji || item.title?.userPreferred || `ID:${item.id}`;
 
-        // 1. Resilient DB existence check across Vault 2 & Vault 2B
-        let existing: any = null;
-        let dbRetry = 0;
-        while (dbRetry < 5) {
-          try {
-            existing = await findOneAcrossVaults(
-              mangaModels,
-              {
-                $or: [
-                  { 'ids.aniId': item.id },
-                  ...(item.idMal ? [{ 'ids.malId': item.idMal }] : []),
-                ],
-              },
-              { titles: 1, slug: 1, type: 1 }
-            );
-            break;
-          } catch (netErr: any) {
-            dbRetry++;
-            console.warn(`⏳ [DB Network Recovery]: ${netErr.message}. Retrying in 5s (${dbRetry}/5)...`);
-            await new Promise((r) => setTimeout(r, 5000));
-          }
-        }
-
-        if (existing) {
-          skippedExisting++;
-          console.log(`[${year} | P${page}] ⏩ [Already in Vault 2/2B] '${existing.titles.primary}' [${existing.type}]`);
-          continue;
-        }
-
-        // 2. Fetch & Ingest full details into Vault 2 / 2B
-        const startTime = Date.now();
-        let ingestSuccess = false;
-        let ingestRetries = 0;
-
-        while (!ingestSuccess && ingestRetries < 3) {
-          try {
-            const mangaDoc = await mangaBuilder.buildAndSaveManga({
-              aniId: item.id,
-              malId: item.idMal,
-            });
-            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-
-            if (mangaDoc) {
-              newlyIngested++;
-              ingestSuccess = true;
-              console.log(
-                `[${year} | P${page}] ✅ Ingested [${mangaDoc.type}] '${mangaDoc.titles.primary}' (${mangaDoc.chapters || '?'} ch, ${mangaDoc.adaptations.length} anime links) in ${elapsed}s`
-              );
-            } else {
-              failed++;
-              ingestSuccess = true;
-              console.warn(`[${year} | P${page}] ⚠️ Skipped '${itemTitle}' (no detailed data)`);
+            // 1. Resilient DB existence check across Vault 2 & Vault 2B
+            let existing: any = null;
+            let dbRetry = 0;
+            while (dbRetry < 5) {
+              try {
+                existing = await findOneAcrossVaults(
+                  mangaModels,
+                  {
+                    $or: [
+                      { 'ids.aniId': item.id },
+                      ...(item.idMal ? [{ 'ids.malId': item.idMal }] : []),
+                    ],
+                  },
+                  { titles: 1, slug: 1, type: 1 }
+                );
+                break;
+              } catch (netErr: any) {
+                dbRetry++;
+                console.warn(`⏳ [DB Network Recovery]: ${netErr.message}. Retrying in 5s (${dbRetry}/5)...`);
+                await new Promise((r) => setTimeout(r, 5000));
+              }
             }
-          } catch (err: any) {
-            ingestRetries++;
-            console.warn(`⏳ Ingest retry for '${itemTitle}' (${err.message}) [${ingestRetries}/3]...`);
-            await new Promise((r) => setTimeout(r, 3000));
-          }
-        }
 
-        // Rate limiter compliance buffer
-        await new Promise((r) => setTimeout(r, 850));
+            if (existing) {
+              skippedExisting++;
+              console.log(`[${year} | P${page}] ⏩ [Already in Vault 2/2B] '${existing.titles.primary}' [${existing.type}]`);
+              return;
+            }
+
+            // 2. Ingest using batch-prefetched AniList payload + MAL enrichment
+            const startTime = Date.now();
+            let ingestSuccess = false;
+            let ingestRetries = 0;
+
+            while (!ingestSuccess && ingestRetries < 3) {
+              try {
+                const mangaDoc = await mangaBuilder.buildAndSaveManga(
+                  { aniId: item.id, malId: item.idMal },
+                  item
+                );
+                const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+                if (mangaDoc) {
+                  newlyIngested++;
+                  ingestSuccess = true;
+                  console.log(
+                    `[${year} | P${page}] ✅ Ingested [${mangaDoc.type}] '${mangaDoc.titles.primary}' (${mangaDoc.chapters || '?'} ch, ${mangaDoc.adaptations.length} anime links) in ${elapsed}s`
+                  );
+                } else {
+                  failed++;
+                  ingestSuccess = true;
+                  console.warn(`[${year} | P${page}] ⚠️ Skipped '${itemTitle}' (no detailed data)`);
+                }
+              } catch (err: any) {
+                ingestRetries++;
+                console.warn(`⏳ Ingest retry for '${itemTitle}' (${err.message}) [${ingestRetries}/3]...`);
+                await new Promise((r) => setTimeout(r, 3000));
+              }
+            }
+          })
+        );
 
         // Periodic Milestone Report & Storage Safety Check every 50 items
-        if (totalProcessed % 50 === 0) {
+        if (totalProcessed % 50 < CONCURRENCY) {
           try {
             const currentTotal = await countAcrossVaults(mangaModels);
             const v2MB = (await getVaultLogicalMB(getSecondaryConnection())).toFixed(2);
